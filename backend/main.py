@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="API de Contagem de Colônias",
     description="Processa imagens de placas de Petri para contar e classificar colônias.",
-    version="1.3.0"
+    version="1.4.0"
 )
 
 app.add_middleware(
@@ -63,15 +63,16 @@ def processar_imagem(imagem_bytes: bytes):
             raise ValueError("Não foi possível detectar a placa de Petri na imagem.")
 
         x, y, r = circulo
+        r_margem = int(r * 0.90)
         mask_placa = np.zeros(gray.shape, dtype=np.uint8)
-        cv2.circle(mask_placa, (x, y), r, 255, -1)
+        cv2.circle(mask_placa, (x, y), r_margem, 255, -1)
 
         img_masked = cv2.bitwise_and(img, img, mask=mask_placa)
         gray_masked = cv2.bitwise_and(gray, gray, mask=mask_placa)
         gray_eq = cv2.equalizeHist(gray_masked)
         blurred = cv2.GaussianBlur(gray_eq, (5, 5), 0)
         thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY_INV, 21, 3)
+                                       cv2.THRESH_BINARY_INV, 31, 2)
         opened = cv2.morphologyEx(thresh, cv2.MORPH_OPEN,
                                    cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
 
@@ -108,8 +109,16 @@ def processar_imagem(imagem_bytes: bytes):
             if perimeter == 0:
                 continue
             circularity = 4 * np.pi * (area / (perimeter * perimeter))
-            if circularity < 0.5:
+            if circularity < 0.45:
                 total_filtradas_circularidade += 1
+                continue
+
+            (cx, cy), radius = cv2.minEnclosingCircle(cnt)
+            center = (int(cx), int(cy))
+            radius = int(radius)
+
+            # Verifica se está dentro da borda permitida (centro da colônia)
+            if np.linalg.norm(np.array(center) - np.array((x, y))) > r_margem:
                 continue
 
             mean_color_bgr = cv2.mean(img, mask=mask)[:3]
@@ -117,9 +126,6 @@ def processar_imagem(imagem_bytes: bytes):
             tipo = classificar_cor_hsv(hsv_pixel[0][0])
             classificacoes_cores.append(tipo)
 
-            (cx, cy), radius = cv2.minEnclosingCircle(cnt)
-            center = (int(cx), int(cy))
-            radius = int(radius)
             if radius > 50:
                 continue
             cor = (0, 0, 255)
