@@ -1,6 +1,6 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 import numpy as np
 import cv2
 from io import BytesIO
@@ -140,7 +140,14 @@ def processar_imagem(imagem_bytes: bytes):
                     f"Contagem final: {resumo_contagem}")
 
         _, buffer = cv2.imencode('.jpg', desenhar)
-        return resumo_contagem, BytesIO(buffer.tobytes())
+        feedback_headers = {
+            "X-Feedback-Avaliadas": str(total_avaliadas),
+            "X-Feedback-Filtradas-Area": str(total_filtradas_area),
+            "X-Feedback-Filtradas-Circularidade": str(total_filtradas_circularidade),
+            "X-Feedback-Desenhadas": str(total_desenhadas)
+        }
+
+        return resumo_contagem, BytesIO(buffer.tobytes()), feedback_headers
 
     except Exception as e:
         logger.exception("Erro inesperado durante o processamento da imagem.")
@@ -151,6 +158,7 @@ async def contar_colonias_endpoint(file: UploadFile = File(...)):
     conteudo_arquivo = await file.read()
     if not conteudo_arquivo:
         raise HTTPException(status_code=400, detail="Arquivo enviado está vazio.")
-    resumo, imagem_processada = processar_imagem(conteudo_arquivo)
+    resumo, imagem_processada, feedback = processar_imagem(conteudo_arquivo)
     headers = {f"X-Resumo-{k.capitalize()}": str(v) for k, v in resumo.items()}
+    headers.update(feedback)
     return StreamingResponse(imagem_processada, media_type="image/jpeg", headers=headers)
