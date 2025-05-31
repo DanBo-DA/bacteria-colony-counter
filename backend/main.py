@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import numpy as np
@@ -6,6 +6,7 @@ import cv2
 from io import BytesIO
 from collections import Counter
 import logging
+from scipy import ndimage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ def detectar_placa(img_gray):
     logger.warning("Nenhuma placa detectada na imagem.")
     return None
 
-def processar_imagem(imagem_bytes: bytes):
+def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual=None):
     try:
         file_bytes = np.asarray(bytearray(imagem_bytes), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
@@ -58,11 +59,15 @@ def processar_imagem(imagem_bytes: bytes):
         desenhar = img.copy()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        circulo = detectar_placa(gray)
-        if circulo is None:
-            raise ValueError("Não foi possível detectar a placa de Petri na imagem.")
+        if x_manual is not None and y_manual is not None and r_manual is not None:
+            x, y, r = int(x_manual), int(y_manual), int(r_manual)
+            logger.info(f"Usando parâmetros manuais para a placa: ({x}, {y}, {r})")
+        else:
+            circulo = detectar_placa(gray)
+            if circulo is None:
+                raise ValueError("Não foi possível detectar a placa de Petri na imagem.")
+            x, y, r = circulo
 
-        x, y, r = circulo
         r_margem = int(r * 0.90)
         mask_placa = np.zeros(gray.shape, dtype=np.uint8)
         cv2.circle(mask_placa, (x, y), r_margem, 255, -1)
@@ -77,14 +82,12 @@ def processar_imagem(imagem_bytes: bytes):
                                    cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
 
         dist_transform = cv2.distanceTransform(opened, cv2.DIST_L2, 5)
-        _, sure_fg = cv2.threshold(dist_transform, 0.4 * dist_transform.max(), 255, 0)
-        sure_fg = np.uint8(sure_fg)
-        unknown = cv2.subtract(opened, sure_fg)
-
-        _, markers = cv2.connectedComponents(sure_fg)
+        local_max = ndimage.maximum_filter(dist_transform, size=15) == dist_transform
+        markers, _ = ndimage.label(local_max)
         markers = markers + 1
+        unknown = cv2.subtract(opened, np.uint8(local_max))
         markers[unknown == 255] = 0
-        markers = cv2.watershed(img_masked, markers)
+        markers = cv2.watershed(img_masked, markers.astype(np.int32))
 
         classificacoes_cores = []
         total_avaliadas = 0
@@ -117,7 +120,6 @@ def processar_imagem(imagem_bytes: bytes):
             center = (int(cx), int(cy))
             radius = int(radius)
 
-            # Verifica se está dentro da borda permitida (centro da colônia)
             if np.linalg.norm(np.array(center) - np.array((x, y))) > r_margem:
                 continue
 
@@ -160,11 +162,16 @@ def processar_imagem(imagem_bytes: bytes):
         raise HTTPException(status_code=500, detail=f"Erro no processamento da imagem: {str(e)}")
 
 @app.post("/contar/", summary="Conta e classifica colônias em uma imagem", response_description="Imagem com colônias marcadas e contagem nos headers")
-async def contar_colonias_endpoint(file: UploadFile = File(...)):
+async def contar_colonias_endpoint(
+    file: UploadFile = File(...),
+    x: int = Form(None),
+    y: int = Form(None),
+    r: int = Form(None)
+):
     conteudo_arquivo = await file.read()
     if not conteudo_arquivo:
         raise HTTPException(status_code=400, detail="Arquivo enviado está vazio.")
-    resumo, imagem_processada, feedback = processar_imagem(conteudo_arquivo)
+    resumo, imagem_processada, feedback = processar_imagem(conteudo_arquivo, x_manual=x, y_manual=y, r_manual=r)
     headers = {f"X-Resumo-{k.capitalize()}": str(v) for k, v in resumo.items()}
     headers.update(feedback)
     return StreamingResponse(imagem_processada, media_type="image/jpeg", headers=headers)
