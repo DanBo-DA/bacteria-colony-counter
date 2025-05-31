@@ -1,3 +1,4 @@
+# Importação de bibliotecas necessárias
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -8,15 +9,18 @@ from collections import Counter
 import logging
 from scipy import ndimage
 
+# Configuração de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Inicialização da aplicação FastAPI
 app = FastAPI(
     title="API de Contagem de Colônias",
     description="Processa imagens de placas de Petri para contar e classificar colônias.",
     version="1.4.0"
 )
 
+# Middleware para permitir CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,6 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Função para classificar colônias por cor média em HSV
 def classificar_cor_hsv(hsv_color_mean):
     h, s, v = hsv_color_mean
     if s < 40 and v > 190:
@@ -36,6 +41,7 @@ def classificar_cor_hsv(hsv_color_mean):
     else:
         return 'bege'
 
+# Função para detectar automaticamente a placa de Petri com HoughCircles
 def detectar_placa(img_gray):
     img_blur = cv2.medianBlur(img_gray, 5)
     circulos = cv2.HoughCircles(img_blur, cv2.HOUGH_GRADIENT, dp=1.2, minDist=100,
@@ -47,8 +53,10 @@ def detectar_placa(img_gray):
     logger.warning("Nenhuma placa detectada na imagem.")
     return None
 
+# Função principal para processamento da imagem
 def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual=None):
     try:
+        # Decodificação da imagem
         file_bytes = np.asarray(bytearray(imagem_bytes), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
@@ -59,6 +67,7 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
         desenhar = img.copy()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
+        # Uso de parâmetros manuais se fornecidos, senão detectar automaticamente
         if x_manual is not None and y_manual is not None and r_manual is not None:
             x, y, r = int(x_manual), int(y_manual), int(r_manual)
             logger.info(f"Usando parâmetros manuais para a placa: ({x}, {y}, {r})")
@@ -68,25 +77,34 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
                 raise ValueError("Não foi possível detectar a placa de Petri na imagem.")
             x, y, r = circulo
 
+        # Aplicação de máscara circular com margem para ignorar borda externa
         r_margem = int(r * 0.90)
         mask_placa = np.zeros(gray.shape, dtype=np.uint8)
         cv2.circle(mask_placa, (x, y), r_margem, 255, -1)
 
+        # Pré-processamento da imagem
         img_masked = cv2.bitwise_and(img, img, mask=mask_placa)
         gray_masked = cv2.bitwise_and(gray, gray, mask=mask_placa)
         gray_eq = cv2.equalizeHist(gray_masked)
         blurred = cv2.GaussianBlur(gray_eq, (5, 5), 0)
+
+        # Limiarização adaptativa
         thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                        cv2.THRESH_BINARY_INV, 31, 2)
+
+        # Abertura morfológica para remover ruído
         opened = cv2.morphologyEx(thresh, cv2.MORPH_OPEN,
                                    cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
 
+        # Distance transform e detecção de picos locais para melhorar watershed
         dist_transform = cv2.distanceTransform(opened, cv2.DIST_L2, 5)
         local_max = ndimage.maximum_filter(dist_transform, size=15) == dist_transform
         markers, _ = ndimage.label(local_max)
         markers = markers + 1
         unknown = cv2.subtract(opened, np.uint8(local_max))
         markers[unknown == 255] = 0
+
+        # Aplicação do algoritmo watershed
         markers = cv2.watershed(img_masked, markers.astype(np.int32))
 
         classificacoes_cores = []
@@ -95,6 +113,7 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
         total_filtradas_circularidade = 0
         total_desenhadas = 0
 
+        # Loop para processar cada marcador/colônia
         for marker in np.unique(markers):
             if marker <= 1:
                 continue
@@ -116,18 +135,22 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
                 total_filtradas_circularidade += 1
                 continue
 
+            # Centro e raio mínimo da colônia
             (cx, cy), radius = cv2.minEnclosingCircle(cnt)
             center = (int(cx), int(cy))
             radius = int(radius)
 
+            # Ignora colônias fora da região útil da placa
             if np.linalg.norm(np.array(center) - np.array((x, y))) > r_margem:
                 continue
 
+            # Classificação de cor
             mean_color_bgr = cv2.mean(img, mask=mask)[:3]
             hsv_pixel = cv2.cvtColor(np.uint8([[mean_color_bgr]]), cv2.COLOR_BGR2HSV)
             tipo = classificar_cor_hsv(hsv_pixel[0][0])
             classificacoes_cores.append(tipo)
 
+            # Desenha o círculo na imagem final
             if radius > 50:
                 continue
             cor = (0, 0, 255)
@@ -140,6 +163,7 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
             cv2.circle(desenhar, center, radius, cor, 2)
             total_desenhadas += 1
 
+        # Geração do resumo
         resumo_contagem = dict(Counter(classificacoes_cores))
         resumo_contagem['total'] = len(classificacoes_cores)
 
@@ -161,6 +185,7 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
         logger.exception("Erro inesperado durante o processamento da imagem.")
         raise HTTPException(status_code=500, detail=f"Erro no processamento da imagem: {str(e)}")
 
+# Endpoint principal da API
 @app.post("/contar/", summary="Conta e classifica colônias em uma imagem", response_description="Imagem com colônias marcadas e contagem nos headers")
 async def contar_colonias_endpoint(
     file: UploadFile = File(...),
