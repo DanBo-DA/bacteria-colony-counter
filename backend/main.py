@@ -21,11 +21,16 @@ def processar_imagem(imagem_bytes):
     original = img.copy()
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (11, 11), 0)
-    _, thresh = cv2.threshold(blurred, 127, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    gray = cv2.equalizeHist(gray)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    thresh = cv2.adaptiveThreshold(
+        blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV, 11, 3
+    )
 
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    colonias = [c for c in contours if cv2.contourArea(c) > 50]
+    colonias = [c for c in contours if 100 < cv2.contourArea(c) < 3000]
 
     for c in colonias:
         (x, y), radius = cv2.minEnclosingCircle(c)
