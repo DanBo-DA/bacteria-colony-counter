@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="API de Contagem de Colônias",
     description="Processa imagens de placas de Petri para contar e classificar colônias.",
-    version="1.2.0"
+    version="1.3.0"
 )
 
 app.add_middleware(
@@ -35,6 +35,15 @@ def classificar_cor_hsv(hsv_color_mean):
     else:
         return 'bege'
 
+def detectar_placa(img_gray):
+    img_blur = cv2.medianBlur(img_gray, 5)
+    circulos = cv2.HoughCircles(img_blur, cv2.HOUGH_GRADIENT, dp=1.2, minDist=100,
+                                 param1=50, param2=30, minRadius=100, maxRadius=0)
+    if circulos is not None:
+        circulos = np.uint16(np.around(circulos))
+        return circulos[0][0]  # x, y, r
+    return None
+
 def processar_imagem(imagem_bytes: bytes):
     try:
         file_bytes = np.asarray(bytearray(imagem_bytes), dtype=np.uint8)
@@ -45,13 +54,24 @@ def processar_imagem(imagem_bytes: bytes):
 
         desenhar = img.copy()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        gray_eq = cv2.equalizeHist(gray)
+
+        # Detectar placa
+        circulo = detectar_placa(gray)
+        if circulo is None:
+            raise ValueError("Não foi possível detectar a placa de Petri na imagem.")
+
+        x, y, r = circulo
+        mask_placa = np.zeros(gray.shape, dtype=np.uint8)
+        cv2.circle(mask_placa, (x, y), r, 255, -1)
+
+        img_masked = cv2.bitwise_and(img, img, mask=mask_placa)
+        gray_masked = cv2.bitwise_and(gray, gray, mask=mask_placa)
+        gray_eq = cv2.equalizeHist(gray_masked)
         blurred = cv2.GaussianBlur(gray_eq, (5, 5), 0)
         thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                        cv2.THRESH_BINARY_INV, 21, 3)
-
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        opened = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+        opened = cv2.morphologyEx(thresh, cv2.MORPH_OPEN,
+                                   cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
 
         dist_transform = cv2.distanceTransform(opened, cv2.DIST_L2, 5)
         _, sure_fg = cv2.threshold(dist_transform, 0.4 * dist_transform.max(), 255, 0)
@@ -61,7 +81,7 @@ def processar_imagem(imagem_bytes: bytes):
         _, markers = cv2.connectedComponents(sure_fg)
         markers = markers + 1
         markers[unknown == 255] = 0
-        markers = cv2.watershed(img, markers)
+        markers = cv2.watershed(img_masked, markers)
 
         classificacoes_cores = []
         for marker in np.unique(markers):
@@ -73,15 +93,15 @@ def processar_imagem(imagem_bytes: bytes):
                 continue
             cnt = contours[0]
             area = cv2.contourArea(cnt)
-            if area < 30 or area > 5000:
+            if area < 3 or area > 800:
                 continue
             mean_color_bgr = cv2.mean(img, mask=mask)[:3]
             hsv_pixel = cv2.cvtColor(np.uint8([[mean_color_bgr]]), cv2.COLOR_BGR2HSV)
             tipo = classificar_cor_hsv(hsv_pixel[0][0])
             classificacoes_cores.append(tipo)
 
-            (x, y), radius = cv2.minEnclosingCircle(cnt)
-            center = (int(x), int(y))
+            (cx, cy), radius = cv2.minEnclosingCircle(cnt)
+            center = (int(cx), int(cy))
             radius = int(radius)
             cor = (0, 0, 255)
             if tipo == 'amarela':
