@@ -108,7 +108,7 @@ def processar_imagem(imagem_bytes: bytes):
             if perimeter == 0:
                 continue
             circularity = 4 * np.pi * (area / (perimeter * perimeter))
-            if circularity < 0.6:
+            if circularity < 0.5:
                 total_filtradas_circularidade += 1
                 continue
 
@@ -120,7 +120,7 @@ def processar_imagem(imagem_bytes: bytes):
             (cx, cy), radius = cv2.minEnclosingCircle(cnt)
             center = (int(cx), int(cy))
             radius = int(radius)
-            if radius > 30:
+            if radius > 50:
                 continue
             cor = (0, 0, 255)
             if tipo == 'amarela':
