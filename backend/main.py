@@ -29,8 +29,21 @@ def processar_imagem(imagem_bytes):
         cv2.THRESH_BINARY_INV, 11, 3
     )
 
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    colonias = [c for c in contours if 100 < cv2.contourArea(c) < 3000]
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    morphed = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+
+    contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    colonias = []
+    for c in contours:
+        area = cv2.contourArea(c)
+        if 100 < area < 2500:
+            perimeter = cv2.arcLength(c, True)
+            if perimeter == 0:
+                continue
+            circularity = 4 * np.pi * (area / (perimeter * perimeter))
+            if circularity > 0.5:
+                colonias.append(c)
 
     for c in colonias:
         (x, y), radius = cv2.minEnclosingCircle(c)
