@@ -18,7 +18,7 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('https://SEU-BACKEND.railway.app/contar', {
+      const response = await fetch('http://bacteria-colony-counter-production.up.railway.app', {
         method: 'POST',
         body: formData,
       });
