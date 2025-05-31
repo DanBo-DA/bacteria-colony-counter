@@ -1,9 +1,10 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 import numpy as np
 import cv2
 from io import BytesIO
+from collections import Counter
 
 app = FastAPI()
 
@@ -14,6 +15,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def classificar_cor(mean_color):
+    b, g, r = mean_color
+    if r > 150 and g < 100:
+        return 'rosada'
+    elif g > 150 and r < 150:
+        return 'amarela'
+    elif sum(mean_color)/3 > 180:
+        return 'clara'
+    else:
+        return 'bege'
 
 def processar_imagem(imagem_bytes):
     file_bytes = np.asarray(bytearray(imagem_bytes), dtype=np.uint8)
@@ -35,24 +47,44 @@ def processar_imagem(imagem_bytes):
     contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     colonias = []
+    classificacoes = []
     for c in contours:
         area = cv2.contourArea(c)
         if 20 < area < 3000:
-            colonias.append(c)
+            mask = np.zeros(gray.shape, np.uint8)
+            cv2.drawContours(mask, [c], -1, 255, -1)
+            mean_color = cv2.mean(img, mask=mask)[:3]
+            tipo = classificar_cor(mean_color)
+            classificacoes.append(tipo)
+            colonias.append((c, tipo))
 
-    for c in colonias:
+    for c, tipo in colonias:
         (x, y), radius = cv2.minEnclosingCircle(c)
         center = (int(x), int(y))
         radius = int(radius)
-        cv2.circle(original, center, radius, (0, 0, 255), 2)
+        cor = (0, 0, 255)
+        if tipo == 'amarela':
+            cor = (0, 255, 255)
+        elif tipo == 'rosada':
+            cor = (255, 0, 255)
+        elif tipo == 'clara':
+            cor = (255, 255, 255)
+        cv2.circle(original, center, radius, cor, 2)
 
     _, buffer = cv2.imencode('.jpg', original)
     img_bytes = BytesIO(buffer.tobytes())
 
-    return len(colonias), img_bytes
+    resumo = dict(Counter(classificacoes))
+    resumo['total'] = len(classificacoes)
+
+    return resumo, img_bytes
 
 @app.post("/contar")
 async def contar_colonias(file: UploadFile = File(...)):
     conteudo = await file.read()
-    total, imagem_processada = processar_imagem(conteudo)
-    return StreamingResponse(imagem_processada, media_type="image/jpeg", headers={"X-Colonias": str(total)})
+    resumo, imagem_processada = processar_imagem(conteudo)
+    headers = {"X-Colonias": str(resumo['total'])}
+    for k, v in resumo.items():
+        if k != 'total':
+            headers[f"X-{k}"] = str(v)
+    return StreamingResponse(imagem_processada, media_type="image/jpeg", headers=headers)
