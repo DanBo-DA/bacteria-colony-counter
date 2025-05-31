@@ -95,12 +95,26 @@ def processar_imagem(imagem_bytes: bytes):
             area = cv2.contourArea(cnt)
             if area < 3 or area > 800:
                 continue
+
+            # -------- MELHORIAS: FILTRO DE CIRCULARIDADE --------
+            perimeter = cv2.arcLength(cnt, True)
+            if perimeter == 0:
+                continue
+            circularity = 4 * np.pi * area / (perimeter * perimeter)
+            if circularity < 0.6 or circularity > 1.2:  # ajuste conforme necessário
+                continue
+
+            # -------- MELHORIAS: FILTRO DE BORDA DA PLACA --------
+            (cx, cy), radius = cv2.minEnclosingCircle(cnt)
+            dist_centro = np.linalg.norm(np.array([cx, cy]) - np.array([x, y]))
+            if dist_centro + radius > r - 5:  # 5 pixels de margem
+                continue
+
             mean_color_bgr = cv2.mean(img, mask=mask)[:3]
             hsv_pixel = cv2.cvtColor(np.uint8([[mean_color_bgr]]), cv2.COLOR_BGR2HSV)
             tipo = classificar_cor_hsv(hsv_pixel[0][0])
             classificacoes_cores.append(tipo)
 
-            (cx, cy), radius = cv2.minEnclosingCircle(cnt)
             center = (int(cx), int(cy))
             radius = int(radius)
             cor = (0, 0, 255)
