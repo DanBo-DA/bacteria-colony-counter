@@ -6,6 +6,7 @@ import cv2
 from io import BytesIO
 from collections import Counter
 import logging # Adicionado para logging
+import math # Adicionado para math.pi (circularidade)
 
 # Configuração básica de logging
 logging.basicConfig(level=logging.INFO)
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="API de Contagem de Colônias",
     description="Processa imagens de placas de Petri para contar e classificar colônias.",
-    version="1.1.0"
+    version="1.2.0" # Versão incrementada
 )
 
 app.add_middleware(
@@ -68,67 +69,69 @@ def processar_imagem(imagem_bytes: bytes):
         # Converter para escala de cinza
         gray = cv2.cvtColor(img_original_colorida, cv2.COLOR_BGR2GRAY)
 
-        # Aplicar CLAHE para melhorar o contraste localmente
-        # clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        # gray_clahe = clahe.apply(gray)
-        # Usar equalização de histograma global se CLAHE não for preferível
+        # Usar equalização de histograma global
         gray_equalizada = cv2.equalizeHist(gray)
+        # Alternativa: CLAHE para contraste local (pode ser melhor para iluminação irregular)
+        # clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        # gray_equalizada = clahe.apply(gray)
 
 
         # Desfoque Gaussiano para suavizar a imagem e reduzir ruído
-        # Um kernel maior pode ser necessário para imagens com mais ruído ou colônias maiores
-        blurred = cv2.GaussianBlur(gray_equalizada, (5, 5), 0) # Kernel (5,5) ou (7,7) podem ser testados
+        blurred = cv2.GaussianBlur(gray_equalizada, (5, 5), 0)
 
         # Limiarização adaptativa para binarizar a imagem
         # Parâmetros (blockSize, C) são cruciais e precisam de ajuste:
-        # blockSize: Tamanho da vizinhança (ímpar, ex: 11, 15, 21, 31 ...)
-        # C: Constante subtraída da média (ex: 2, 3, 5 ...)
+        # blockSize: Tamanho da vizinhança (ímpar, ex: 11, 15, 17, 21 ...)
+        # C: Constante subtraída da média (ex: 2, 3, 5, 7 ...)
         thresh = cv2.adaptiveThreshold(
             blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY_INV, 21, 3 # Valores de exemplo, ajuste conforme necessário
+            cv2.THRESH_BINARY_INV, 15, 5 # AJUSTE AQUI: blockSize=15, C=5 (experimentar)
         )
 
         # Operações morfológicas para limpar a imagem binarizada
         # Abertura (OPEN): Remove pequenos ruídos brancos (colônias falsas)
-        # Kernel maior remove objetos maiores.
-        kernel_abertura = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)) # (3,3) ou (5,5)
-        morphed = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel_abertura)
+        kernel_abertura = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        morphed_aberta = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel_abertura)
 
         # Fechamento (CLOSE): Preenche pequenos buracos pretos dentro das colônias
-        # Descomente se necessário e ajuste o kernel.
-        # kernel_fechamento = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        # morphed = cv2.morphologyEx(morphed, cv2.MORPH_CLOSE, kernel_fechamento)
+        kernel_fechamento = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)) # AJUSTE AQUI: kernel (5,5)
+        morphed_final = cv2.morphologyEx(morphed_aberta, cv2.MORPH_CLOSE, kernel_fechamento)
 
         # Encontrar contornos das possíveis colônias
-        contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(morphed_final, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         colonias_detectadas = []
         classificacoes_cores = []
 
         for contorno in contours:
             area = cv2.contourArea(contorno)
-            # Filtrar contornos por área para remover ruídos ou objetos muito grandes
-            # Estes limites (50 e 2500) são exemplos e DEVEM ser ajustados
-            if 50 < area < 3500: # Aumentei um pouco o limite inferior e superior
-                # Criar uma máscara para a colônia atual
-                mask = np.zeros(gray.shape, np.uint8)
-                cv2.drawContours(mask, [contorno], -1, 255, -1) # Preenche o contorno
+            
+            # Filtrar contornos por área
+            # Estes limites (AJUSTE AQUI: 30 e 2800) são exemplos e DEVEM ser ajustados
+            if 30 < area < 2800:
+                perimetro = cv2.arcLength(contorno, True)
+                if perimetro == 0: continue # Evitar divisão por zero
 
-                # Calcular a cor média da colônia na imagem colorida original
-                mean_color_bgr = cv2.mean(img_original_colorida, mask=mask)[:3] # (B, G, R)
+                # Filtro de Circularidade: (4 * pi * Area) / (Perimetro^2)
+                # Valores mais próximos de 1 são mais circulares.
+                circularidade = (4 * math.pi * area) / (perimetro * perimetro)
+                
+                # AJUSTE AQUI: Limiar de circularidade (ex: 0.65)
+                if circularidade > 0.60:
+                    mask = np.zeros(gray.shape, np.uint8)
+                    cv2.drawContours(mask, [contorno], -1, 255, -1)
 
-                # Converter a cor média BGR para HSV para classificação
-                # cv2.cvtColor espera um array 3D (1x1 pixel com 3 canais)
-                mean_color_bgr_pixel = np.uint8([[mean_color_bgr]])
-                hsv_pixel = cv2.cvtColor(mean_color_bgr_pixel, cv2.COLOR_BGR2HSV)
-                mean_hsv = hsv_pixel[0][0] # (H, S, V)
+                    mean_color_bgr = cv2.mean(img_original_colorida, mask=mask)[:3]
+                    mean_color_bgr_pixel = np.uint8([[mean_color_bgr]])
+                    hsv_pixel = cv2.cvtColor(mean_color_bgr_pixel, cv2.COLOR_BGR2HSV)
+                    mean_hsv = hsv_pixel[0][0]
 
-                tipo_cor = classificar_cor_hsv(mean_hsv)
-                classificacoes_cores.append(tipo_cor)
-                colonias_detectadas.append({'contorno': contorno, 'tipo': tipo_cor, 'cor_media_bgr': mean_color_bgr})
+                    tipo_cor = classificar_cor_hsv(mean_hsv)
+                    classificacoes_cores.append(tipo_cor)
+                    colonias_detectadas.append({'contorno': contorno, 'tipo': tipo_cor, 'cor_media_bgr': mean_color_bgr, 'area': area, 'circularidade': circularidade})
         
         logger.info(f"Contornos brutos encontrados: {len(contours)}")
-        logger.info(f"Colônias filtradas por área: {len(colonias_detectadas)}")
+        logger.info(f"Colônias após filtros (área e circularidade): {len(colonias_detectadas)}")
 
         # Desenhar círculos e informações na imagem original
         for colonia in colonias_detectadas:
@@ -139,21 +142,20 @@ def processar_imagem(imagem_bytes: bytes):
             center = (int(x), int(y))
             radius = int(radius)
 
-            # Definir cor do círculo com base na classificação
-            cor_desenho = (0, 0, 255) # Vermelho padrão (para 'bege' ou não classificado)
+            cor_desenho = (0, 0, 255) 
             if tipo == 'amarela':
-                cor_desenho = (0, 255, 255)  # Amarelo (BGR)
+                cor_desenho = (0, 255, 255)
             elif tipo == 'rosada':
-                cor_desenho = (203, 192, 255) # Rosa claro (BGR) - (era magenta, pode ser muito forte)
+                cor_desenho = (203, 192, 255) 
             elif tipo == 'clara':
-                cor_desenho = (255, 255, 255)  # Branco (BGR)
+                cor_desenho = (255, 255, 255)
             
             cv2.circle(original_para_desenho, center, radius, cor_desenho, 2)
-            # Opcional: Adicionar texto com o tipo perto da colônia
-            # cv2.putText(original_para_desenho, tipo, (center[0], center[1] - radius - 5),
-            #             cv2.FONT_HERSHEY_SIMPLEX, 0.4, cor_desenho, 1)
+            # Opcional: Adicionar texto com o tipo ou área/circularidade para depuração
+            # texto_debug = f"{tipo} A:{int(colonia['area'])} C:{colonia['circularidade']:.2f}"
+            # cv2.putText(original_para_desenho, texto_debug, (center[0], center[1] - radius - 5),
+            #             cv2.FONT_HERSHEY_SIMPLEX, 0.3, cor_desenho, 1)
 
-        # Codificar a imagem processada para envio
         success, buffer = cv2.imencode('.jpg', original_para_desenho)
         if not success:
             logger.error("Falha ao codificar a imagem processada para JPEG.")
@@ -161,7 +163,6 @@ def processar_imagem(imagem_bytes: bytes):
         
         img_bytes_io = BytesIO(buffer.tobytes())
 
-        # Preparar resumo da contagem
         resumo_contagem = dict(Counter(classificacoes_cores))
         resumo_contagem['total'] = len(classificacoes_cores)
         
@@ -169,14 +170,14 @@ def processar_imagem(imagem_bytes: bytes):
 
         return resumo_contagem, img_bytes_io
 
-    except ValueError as ve: # Erros esperados de validação ou processamento
+    except ValueError as ve:
         logger.error(f"Erro de valor durante o processamento: {ve}")
-        raise # Re-levanta a exceção para ser tratada pelo endpoint FastAPI
+        raise
     except cv2.error as cv_err:
         logger.error(f"Erro OpenCV: {cv_err}")
         raise HTTPException(status_code=500, detail=f"Erro interno no processamento de imagem (OpenCV): {str(cv_err)}")
     except Exception as e:
-        logger.exception("Erro inesperado durante o processamento da imagem.") # Loga o traceback completo
+        logger.exception("Erro inesperado durante o processamento da imagem.")
         raise HTTPException(status_code=500, detail=f"Ocorreu um erro inesperado no servidor: {str(e)}")
 
 
@@ -201,7 +202,6 @@ async def contar_colonias_endpoint(file: UploadFile = File(..., description="Arq
 
         headers = {}
         for k, v in resumo.items():
-            # Sanitiza a chave para ser um nome de cabeçalho HTTP válido e mais legível
             header_key = f"X-Resumo-{k.replace('_', '-').capitalize()}"
             headers[header_key] = str(v)
         
@@ -209,9 +209,9 @@ async def contar_colonias_endpoint(file: UploadFile = File(..., description="Arq
 
         return StreamingResponse(imagem_processada_bytes_io, media_type="image/jpeg", headers=headers)
 
-    except ValueError as ve: # Captura erros de processar_imagem que são ValueError
+    except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except HTTPException as http_exc: # Re-levanta HTTPExceptions já tratadas
+    except HTTPException as http_exc:
         raise http_exc
     except Exception as e:
         logger.exception(f"Erro não tratado no endpoint /contar/: {e}")
