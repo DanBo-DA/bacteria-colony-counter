@@ -22,14 +22,14 @@ def processar_imagem(imagem_bytes):
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
 
     thresh = cv2.adaptiveThreshold(
         blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY_INV, 11, 3
+        cv2.THRESH_BINARY_INV, 11, 2
     )
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
     morphed = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
 
     contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -37,13 +37,8 @@ def processar_imagem(imagem_bytes):
     colonias = []
     for c in contours:
         area = cv2.contourArea(c)
-        if 100 < area < 2500:
-            perimeter = cv2.arcLength(c, True)
-            if perimeter == 0:
-                continue
-            circularity = 4 * np.pi * (area / (perimeter * perimeter))
-            if circularity > 0.5:
-                colonias.append(c)
+        if 20 < area < 3000:
+            colonias.append(c)
 
     for c in colonias:
         (x, y), radius = cv2.minEnclosingCircle(c)
