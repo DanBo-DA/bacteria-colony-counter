@@ -41,7 +41,9 @@ def detectar_placa(img_gray):
                                  param1=50, param2=30, minRadius=100, maxRadius=0)
     if circulos is not None:
         circulos = np.uint16(np.around(circulos))
+        logger.info(f"Placa detectada com centro em ({circulos[0][0][0]}, {circulos[0][0][1]}) e raio {circulos[0][0][2]}")
         return circulos[0][0]  # x, y, r
+    logger.warning("Nenhuma placa detectada na imagem.")
     return None
 
 def processar_imagem(imagem_bytes: bytes):
@@ -52,6 +54,7 @@ def processar_imagem(imagem_bytes: bytes):
         if img is None:
             raise ValueError("Não foi possível decodificar a imagem.")
 
+        logger.info(f"Imagem recebida com dimensões: {img.shape}")
         desenhar = img.copy()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -83,6 +86,11 @@ def processar_imagem(imagem_bytes: bytes):
         markers = cv2.watershed(img_masked, markers)
 
         classificacoes_cores = []
+        total_avaliadas = 0
+        total_filtradas_area = 0
+        total_filtradas_circularidade = 0
+        total_desenhadas = 0
+
         for marker in np.unique(markers):
             if marker <= 1:
                 continue
@@ -92,13 +100,16 @@ def processar_imagem(imagem_bytes: bytes):
                 continue
             cnt = contours[0]
             area = cv2.contourArea(cnt)
+            total_avaliadas += 1
             if area < 1.5 or area > 800:
+                total_filtradas_area += 1
                 continue
             perimeter = cv2.arcLength(cnt, True)
             if perimeter == 0:
                 continue
             circularity = 4 * np.pi * (area / (perimeter * perimeter))
             if circularity < 0.6:
+                total_filtradas_circularidade += 1
                 continue
 
             mean_color_bgr = cv2.mean(img, mask=mask)[:3]
@@ -119,9 +130,14 @@ def processar_imagem(imagem_bytes: bytes):
             elif tipo == 'clara':
                 cor = (255, 255, 255)
             cv2.circle(desenhar, center, radius, cor, 2)
+            total_desenhadas += 1
 
         resumo_contagem = dict(Counter(classificacoes_cores))
         resumo_contagem['total'] = len(classificacoes_cores)
+
+        logger.info(f"Total avaliadas: {total_avaliadas}, Filtradas por área: {total_filtradas_area}, "
+                    f"Filtradas por circularidade: {total_filtradas_circularidade}, Desenhadas: {total_desenhadas}, "
+                    f"Contagem final: {resumo_contagem}")
 
         _, buffer = cv2.imencode('.jpg', desenhar)
         return resumo_contagem, BytesIO(buffer.tobytes())
