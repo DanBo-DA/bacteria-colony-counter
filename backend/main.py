@@ -55,7 +55,6 @@ def processar_imagem(imagem_bytes: bytes):
         desenhar = img.copy()
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # Detectar placa
         circulo = detectar_placa(gray)
         if circulo is None:
             raise ValueError("Não foi possível detectar a placa de Petri na imagem.")
@@ -93,8 +92,15 @@ def processar_imagem(imagem_bytes: bytes):
                 continue
             cnt = contours[0]
             area = cv2.contourArea(cnt)
-            if area < 3 or area > 800:
+            if area < 2 or area > 800:
                 continue
+            perimeter = cv2.arcLength(cnt, True)
+            if perimeter == 0:
+                continue
+            circularity = 4 * np.pi * (area / (perimeter * perimeter))
+            if circularity < 0.65:
+                continue
+
             mean_color_bgr = cv2.mean(img, mask=mask)[:3]
             hsv_pixel = cv2.cvtColor(np.uint8([[mean_color_bgr]]), cv2.COLOR_BGR2HSV)
             tipo = classificar_cor_hsv(hsv_pixel[0][0])
@@ -103,6 +109,8 @@ def processar_imagem(imagem_bytes: bytes):
             (cx, cy), radius = cv2.minEnclosingCircle(cnt)
             center = (int(cx), int(cy))
             radius = int(radius)
+            if radius > 30:
+                continue
             cor = (0, 0, 255)
             if tipo == 'amarela':
                 cor = (0, 255, 255)
