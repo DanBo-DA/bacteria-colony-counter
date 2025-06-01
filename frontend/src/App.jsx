@@ -9,6 +9,8 @@ function App() {
   const [nomeArquivo, setNomeArquivo] = useState("");
   const [nomeAmostra, setNomeAmostra] = useState("");
   const [logAnalises, setLogAnalises] = useState([]);
+  const [selecionados, setSelecionados] = useState({});
+  const [todosSelecionados, setTodosSelecionados] = useState(false);
 
   const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -96,10 +98,11 @@ function App() {
   };
 
   const exportarCSV = () => {
-    if (logAnalises.length === 0) return;
-    const colunas = ["nomeAmostra", "data", "hora", ...Object.keys(logAnalises[0]).filter(k => !["nomeAmostra", "data", "hora"].includes(k))];
+    const selecionadosParaExportar = logAnalises.filter((_, idx) => selecionados[idx]);
+    if (selecionadosParaExportar.length === 0) return;
+    const colunas = ["nomeAmostra", "data", "hora", "TOTAL", "densidadecoloniascm2", "estimativatotalcolonias"];
     const linhas = [colunas.join(",")];
-    logAnalises.forEach(item => {
+    selecionadosParaExportar.forEach(item => {
       const linha = colunas.map(c => item[c] || "").join(",");
       linhas.push(linha);
     });
@@ -108,6 +111,24 @@ function App() {
     link.href = URL.createObjectURL(blob);
     link.download = "analises_colonias.csv";
     link.click();
+  };
+
+  const excluirEntrada = (index) => {
+    setLogAnalises(prev => prev.filter((_, i) => i !== index));
+    setSelecionados(prev => {
+      const novo = { ...prev };
+      delete novo[index];
+      return novo;
+    });
+  };
+
+  const selecionarTodos = () => {
+    const novoEstado = {};
+    logAnalises.forEach((_, idx) => {
+      novoEstado[idx] = !todosSelecionados;
+    });
+    setSelecionados(novoEstado);
+    setTodosSelecionados(!todosSelecionados);
   };
 
   const total = parseInt(resultado.TOTAL || 0);
@@ -179,7 +200,38 @@ function App() {
       {logAnalises.length > 0 && (
         <div style={{ marginTop: 30 }}>
           <h3>📋 Histórico de Análises</h3>
-          <button onClick={exportarCSV} style={botaoEstilo}>⬇️ Exportar CSV</button>
+          <div style={{ marginBottom: 10 }}>
+            <button onClick={selecionarTodos} style={botaoEstilo}>{todosSelecionados ? "☑️ Desmarcar Todos" : "✅ Selecionar Todos"}</button>
+            <button onClick={exportarCSV} style={botaoEstilo}>⬇️ Exportar Selecionados</button>
+          </div>
+          <table style={{ width: '100%', marginTop: 10, borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ backgroundColor: '#222', color: '#ddd' }}>
+                <th></th>
+                <th>Data</th>
+                <th>Hora</th>
+                <th>Amostra</th>
+                <th>Total</th>
+                <th>Densidade</th>
+                <th>Estimativa</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logAnalises.map((item, idx) => (
+                <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#1c1c1c' : '#2c2c2c' }}>
+                  <td><input type="checkbox" checked={!!selecionados[idx]} onChange={() => setSelecionados(prev => ({ ...prev, [idx]: !prev[idx] }))} /></td>
+                  <td>{item.data}</td>
+                  <td>{item.hora}</td>
+                  <td>{item.nomeAmostra}</td>
+                  <td>{item.TOTAL}</td>
+                  <td>{item.densidadecoloniascm2}</td>
+                  <td>{item.estimativatotalcolonias}</td>
+                  <td><button onClick={() => excluirEntrada(idx)} style={{ fontSize: 11, backgroundColor: '#800', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 4, cursor: 'pointer' }}>Excluir</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
