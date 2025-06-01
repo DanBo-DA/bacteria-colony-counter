@@ -1,10 +1,10 @@
 import React, { useRef, useState } from 'react';
-// import './App.css';
 
 function App() {
   const fileInputRef = useRef(null);
   const [imagem, setImagem] = useState(null);
   const [resultado, setResultado] = useState({});
+  const [feedback, setFeedback] = useState({});
   const [processando, setProcessando] = useState(false);
   const [nomeArquivo, setNomeArquivo] = useState("");
   const [nomeAmostra, setNomeAmostra] = useState("");
@@ -13,6 +13,7 @@ function App() {
   const handleReset = () => {
     setImagem(null);
     setResultado({});
+    setFeedback({});
     setNomeArquivo("");
     setNomeAmostra("");
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -24,13 +25,12 @@ function App() {
 
     setProcessando(true);
     setResultado({});
+    setFeedback({});
     setImagem(null);
     setNomeArquivo(file.name);
 
     const formData = new FormData();
     formData.append('file', file);
-
-    // Essencial: Campo Obrigatorio no BackEnd
     formData.append('nome_amostra', nomeAmostra || file.name);
 
     try {
@@ -46,19 +46,28 @@ function App() {
       setImagem(url);
 
       const resumo = {};
+      const dadosFeedback = {};
+
       response.headers.forEach((valor, chave) => {
         if (chave.toLowerCase().startsWith("x-resumo-")) {
           const label = chave.replace("x-resumo-", "").toUpperCase();
           resumo[label] = valor;
         }
+        if (chave.toLowerCase().startsWith("x-feedback-")) {
+          const label = chave.replace("x-feedback-", "").replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          dadosFeedback[label] = valor;
+        }
       });
+
       setResultado(resumo);
+      setFeedback(dadosFeedback);
 
       const novaEntrada = {
         nomeAmostra: nomeAmostra || file.name,
         data: new Date().toLocaleDateString(),
         hora: new Date().toLocaleTimeString(),
-        ...resumo
+        ...resumo,
+        ...dadosFeedback
       };
       setLogAnalises(prev => [...prev, novaEntrada]);
 
@@ -119,7 +128,7 @@ function App() {
       /><br />
 
       {!imagem && (
-        <button onClick={() => fileInputRef.current?.click()} style={botaoEstilo}>Enviar Imagem</button>
+        <button onClick={() => fileInputRef.current?.click()} style={botaoEstilo}>📤 Enviar Imagem</button>
       )}
 
       {imagem && (
@@ -129,16 +138,26 @@ function App() {
 
           {!processando && Object.keys(resultado).length > 0 && (
             <div style={{ marginTop: 15 }}>
-              <h3>🧪 Colônias Detectadas</h3>
-              <ul style={{ listStyle: 'none', padding: 0 }}>
+              <h3>🧪 Resumo de Colônias</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 {Object.entries(resultado).map(([chave, valor]) => (
-                  <li key={chave}><strong>{chave}:</strong> {valor}</li>
+                  <span key={chave} style={{ color: '#fff', marginBottom: 4 }}><strong>{chave}:</strong> {valor}</span>
                 ))}
-              </ul>
-
+              </div>
+              {Object.keys(feedback).length > 0 && (
+                <div style={{ marginTop: 20 }}>
+                  <h4>⚙️ Detalhes Técnicos</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    {Object.entries(feedback).map(([chave, valor]) => (
+                      <span key={chave} style={{ color: '#ccc', fontSize: 13, marginBottom: 3 }}><strong>{chave}:</strong> {valor}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div style={{ marginTop: 10 }}>
                 <button onClick={baixarImagem} style={botaoEstilo}>📥 Baixar Resultado</button>
                 <button onClick={handleReset} style={botaoEstilo}>♻️ Resetar</button>
+                <button onClick={exportarCSV} style={botaoEstilo}>⬇️ Exportar CSV</button>
               </div>
             </div>
           )}
