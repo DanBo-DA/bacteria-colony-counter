@@ -29,7 +29,9 @@ app.add_middleware(
     expose_headers=[
         "X-Resumo-Total", "X-Resumo-Amarela", "X-Resumo-Bege", "X-Resumo-Clara", "X-Resumo-Rosada",
         "X-Feedback-Avaliadas", "X-Feedback-Filtradas-Area", "X-Feedback-Filtradas-Circularidade",
-        "X-Feedback-Desenhadas", "X-Feedback-Raio"
+        "X-Feedback-Desenhadas", "X-Feedback-Raio",
+        "X-Feedback-Densidade-Colonias-Cm2",
+        "X-Feedback-Estimativa-Total-Colonias"
     ]
 )
 
