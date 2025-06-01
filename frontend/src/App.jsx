@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import './App.css';
 
 function App() {
   const fileInputRef = useRef(null);
@@ -6,7 +7,8 @@ function App() {
   const [resultado, setResultado] = useState({});
   const [processando, setProcessando] = useState(false);
   const [nomeArquivo, setNomeArquivo] = useState("");
-  const [nomeAmostra, setNomeAmostra] = useState(""); // Novo estado para nome da amostra
+  const [nomeAmostra, setNomeAmostra] = useState("");
+  const [logAnalises, setLogAnalises] = useState([]);
 
   const handleReset = () => {
     setImagem(null);
@@ -18,10 +20,7 @@ function App() {
 
   const handleImageUpload = async (event) => {
     const file = event.target.files[0];
-    if (!file || !nomeAmostra.trim()) {
-      alert("Informe o nome da amostra e selecione uma imagem.");
-      return;
-    }
+    if (!file) return;
 
     setProcessando(true);
     setResultado({});
@@ -30,7 +29,6 @@ function App() {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('nome_amostra', nomeAmostra); // Envia nome da amostra
 
     try {
       const response = await fetch('https://bacteria-colony-counter-production.up.railway.app/contar/?v=3', {
@@ -44,7 +42,6 @@ function App() {
       const url = URL.createObjectURL(blob);
       setImagem(url);
 
-      // Extrai todos os headers que começam com 'x-resumo-'
       const resumo = {};
       response.headers.forEach((valor, chave) => {
         if (chave.toLowerCase().startsWith("x-resumo-")) {
@@ -53,6 +50,14 @@ function App() {
         }
       });
       setResultado(resumo);
+
+      const novaEntrada = {
+        nomeAmostra: nomeAmostra || file.name,
+        data: new Date().toLocaleDateString(),
+        hora: new Date().toLocaleTimeString(),
+        ...resumo
+      };
+      setLogAnalises(prev => [...prev, novaEntrada]);
 
     } catch (error) {
       console.error('Erro ao processar imagem:', error);
@@ -66,42 +71,33 @@ function App() {
     if (imagem) {
       const link = document.createElement('a');
       link.href = imagem;
-      link.download = `resultado_${nomeAmostra || nomeArquivo}`;
+      link.download = `resultado_${nomeArquivo}`;
       link.click();
     }
   };
 
+  const exportarCSV = () => {
+    const colunas = ["nomeAmostra", "data", "hora", ...Object.keys(logAnalises[0] || {}).filter(k => !["nomeAmostra", "data", "hora"].includes(k))];
+    const linhas = [colunas.join(",")];
+    logAnalises.forEach(item => {
+      const linha = colunas.map(c => item[c] || "").join(",");
+      linhas.push(linha);
+    });
+    const blob = new Blob([linhas.join("\n")], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = "analises_colonias.csv";
+    link.click();
+  };
+
   return (
     <div style={{ padding: 20, textAlign: 'center', backgroundColor: '#111', color: '#fff', minHeight: '100vh' }}>
-      <h1 style={{ fontSize: 32 }}> Contador de Colônias Bacterianas (Alta Densidade)</h1>
-      
-      <p style={{
-        backgroundColor: '#222', color: '#ddd', padding: '10px 15px',
-        borderRadius: 8, maxWidth: 600, margin: '10px auto', fontSize: 14
-      }}>
-        ⚠️ Esta versão é otimizada para imagens com <strong>grande número de colônias</strong>.<br />
+      <h1 style={{ fontSize: 32 }}>Contador de Colônias Bacterianas (Alta Densidade)</h1>
+      <p style={{ backgroundColor: '#222', color: '#ddd', padding: '10px 15px', borderRadius: 8, maxWidth: 600, margin: '10px auto', fontSize: 14 }}>
+        ⚠️ Esta versão é otimizada para imagens com <strong>grande número de colônias(>500 UFC/placa)</strong>.
         Pode gerar falsos positivos em placas com baixa densidade ou interferências no fundo.
       </p>
 
-      {/* Campo para nome da amostra */}
-      <input
-        type="text"
-        placeholder="🧾 Nome da Amostra"
-        value={nomeAmostra}
-        onChange={(e) => setNomeAmostra(e.target.value)}
-        style={{
-          marginBottom: 10,
-          padding: '8px 12px',
-          borderRadius: 6,
-          border: '1px solid #444',
-          backgroundColor: '#222',
-          color: '#fff',
-          width: '60%'
-        }}
-      />
-      <br />
-
-      {/* Input oculto de imagem */}
       <input
         type="file"
         accept="image/*"
@@ -110,18 +106,21 @@ function App() {
         style={{ display: 'none' }}
       />
 
-      {/* Botão inicial */}
+      <input
+        type="text"
+        placeholder="Nome da Amostra"
+        value={nomeAmostra}
+        onChange={e => setNomeAmostra(e.target.value)}
+        style={{ padding: 8, marginTop: 10, borderRadius: 6, border: '1px solid #444', backgroundColor: '#222', color: '#fff' }}
+      /><br />
+
       {!imagem && (
-        <button onClick={() => fileInputRef.current?.click()} style={botaoEstilo}>
-          Enviar Imagem
-        </button>
+        <button onClick={() => fileInputRef.current?.click()} style={botaoEstilo}>Enviar Imagem</button>
       )}
 
-      {/* Área de resultado */}
       {imagem && (
         <div style={{ marginTop: 20 }}>
           <img src={imagem} alt="Resultado" style={{ maxWidth: 500, width: '100%', borderRadius: 10 }} />
-
           {processando && <p style={{ marginTop: 10 }}>🔄 Processando imagem...</p>}
 
           {!processando && Object.keys(resultado).length > 0 && (
@@ -134,11 +133,18 @@ function App() {
               </ul>
 
               <div style={{ marginTop: 10 }}>
-                <button onClick={baixarImagem} style={botaoEstilo}>📥 Baixar Resultado</button>{' '}
+                <button onClick={baixarImagem} style={botaoEstilo}>📥 Baixar Resultado</button>
                 <button onClick={handleReset} style={botaoEstilo}>♻️ Resetar</button>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {logAnalises.length > 0 && (
+        <div style={{ marginTop: 30 }}>
+          <h3>📋 Histórico de Análises</h3>
+          <button onClick={exportarCSV} style={botaoEstilo}>⬇️ Exportar CSV</button>
         </div>
       )}
 
