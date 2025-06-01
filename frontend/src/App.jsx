@@ -31,7 +31,7 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('https://bacteria-colony-counter-production.up.railway.app/contar/?v=3', {
+      const response = await fetch('https://bacteria-colony-counter-production.up.railway.app/contar/', {
         method: 'POST',
         body: formData,
       });
@@ -77,7 +77,8 @@ function App() {
   };
 
   const exportarCSV = () => {
-    const colunas = ["nomeAmostra", "data", "hora", ...Object.keys(logAnalises[0] || {}).filter(k => !["nomeAmostra", "data", "hora"].includes(k))];
+    if (logAnalises.length === 0) return;
+    const colunas = ["nomeAmostra", "data", "hora", ...Object.keys(logAnalises[0]).filter(k => !["nomeAmostra", "data", "hora"].includes(k))];
     const linhas = [colunas.join(",")];
     logAnalises.forEach(item => {
       const linha = colunas.map(c => item[c] || "").join(",");
