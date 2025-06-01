@@ -18,7 +18,7 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('https://bacteria-colony-counter-production.up.railway.app/contar/?v=2', {
+      const response = await fetch('https://bacteria-colony-counter-production.up.railway.app/contar/?v=3', {
         method: 'POST',
         body: formData,
       });
@@ -29,7 +29,8 @@ function App() {
       const url = URL.createObjectURL(blob);
       setImagem(url);
 
-      const totalColonias = response.headers.get('X-Colonias');
+      // CORREÇÃO AQUI: Mudança de 'X-Colonias' para 'X-Resumo-Total'
+      const totalColonias = response.headers.get('X-Resumo-Total');
       setResultado(totalColonias !== null ? totalColonias : 'Indisponível');
     } catch (error) {
       console.error('Erro ao processar imagem:', error);
