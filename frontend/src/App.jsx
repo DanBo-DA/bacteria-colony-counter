@@ -10,6 +10,8 @@ function App() {
   const [nomeAmostra, setNomeAmostra] = useState("");
   const [logAnalises, setLogAnalises] = useState([]);
 
+  const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+
   const handleReset = () => {
     setImagem(null);
     setResultado({});
@@ -59,8 +61,8 @@ function App() {
           resumo[label] = valor;
         }
         if (chave.toLowerCase().startsWith("x-feedback-")) {
-          const label = chave.replace("x-feedback-", "").replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-          dadosFeedback[label] = valor;
+          const key = normalize(chave.replace("x-feedback-", ""));
+          dadosFeedback[key] = valor;
         }
       });
 
@@ -109,8 +111,8 @@ function App() {
   };
 
   const total = parseInt(resultado.TOTAL || 0);
-  const densidade = feedback["Densidade Colonias Cm2"] || 0;
-  const estimativa = feedback["Estimativa Total Colonias"] || 0;
+  const densidade = feedback["densidadecoloniascm2"] || 0;
+  const estimativa = feedback["estimativatotalcolonias"] || 0;
 
   return (
     <div style={{ padding: 20, textAlign: 'center', backgroundColor: '#111', color: '#fff', minHeight: '100vh' }}>
@@ -158,7 +160,7 @@ function App() {
                   <h4>⚙️ Detalhes Técnicos</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     {Object.entries(feedback).map(([chave, valor]) => (
-                      !["Densidade Colonias Cm2", "Estimativa Total Colonias"].includes(chave) && (
+                      !["densidadecoloniascm2", "estimativatotalcolonias"].includes(chave) && (
                         <span key={chave} style={{ color: '#ccc', fontSize: 13, marginBottom: 3 }}><strong>{chave}:</strong> {valor}</span>
                       )
                     ))}
