@@ -153,8 +153,17 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
                 f"Contagem final: {resumo_contagem}")
 
     # Adicionando metadados na imagem
-    text = f"Nome: {nome_amostra}\nData: {datetime.now().strftime('%Y-%m-%d')}\nHora: {datetime.now().strftime('%H:%M:%S')}\nTotal: {resumo_contagem['total']}"
-    cv2.putText(desenhar, text, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+    texto_cabecalho = [
+    f"{nome_amostra}",
+    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Brasília)",
+    f"Total: {resumo_contagem['total']} UFC",
+    f"Densidade: {densidade:.2f} UFC/cm²"
+]
+
+y0 = 25
+for i, linha in enumerate(texto_cabecalho):
+    y = y0 + i * 22
+    cv2.putText(desenhar, linha, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
 
     _, buffer = cv2.imencode('.jpg', desenhar)
     feedback_headers = {
