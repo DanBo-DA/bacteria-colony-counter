@@ -108,6 +108,10 @@ function App() {
     link.click();
   };
 
+  const total = parseInt(resultado.TOTAL || 0);
+  const densidade = feedback["Densidade Colonias Cm2"] || 0;
+  const estimativa = feedback["Estimativa Total Colonias"] || 0;
+
   return (
     <div style={{ padding: 20, textAlign: 'center', backgroundColor: '#111', color: '#fff', minHeight: '100vh' }}>
       <h1 style={{ fontSize: 32 }}>Contador de Colônias Bacterianas (Alta Densidade)</h1>
@@ -141,20 +145,22 @@ function App() {
           <img src={imagem} alt="Resultado" style={{ maxWidth: 500, width: '100%', borderRadius: 10 }} />
           {processando && <p style={{ marginTop: 10 }}>🔄 Processando imagem...</p>}
 
-          {!processando && Object.keys(resultado).length > 0 && (
+          {!processando && (
             <div style={{ marginTop: 15 }}>
               <h3>🧪 Resumo de Colônias</h3>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                {Object.entries(resultado).map(([chave, valor]) => (
-                  <span key={chave} style={{ color: '#fff', marginBottom: 4 }}><strong>{chave}:</strong> {valor}</span>
-                ))}
+                <span style={{ color: '#fff', marginBottom: 4 }}><strong>TOTAL:</strong> {total}</span>
+                <span style={{ color: '#fff', marginBottom: 4 }}><strong>Densidade (UFC/cm²):</strong> {densidade}</span>
+                <span style={{ color: '#fff', marginBottom: 4 }}><strong>Estimativa Total (Placa 57.5cm²):</strong> {estimativa}</span>
               </div>
               {Object.keys(feedback).length > 0 && (
                 <div style={{ marginTop: 20 }}>
                   <h4>⚙️ Detalhes Técnicos</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     {Object.entries(feedback).map(([chave, valor]) => (
-                      <span key={chave} style={{ color: '#ccc', fontSize: 13, marginBottom: 3 }}><strong>{chave}:</strong> {valor}</span>
+                      !["Densidade Colonias Cm2", "Estimativa Total Colonias"].includes(chave) && (
+                        <span key={chave} style={{ color: '#ccc', fontSize: 13, marginBottom: 3 }}><strong>{chave}:</strong> {valor}</span>
+                      )
                     ))}
                   </div>
                 </div>
