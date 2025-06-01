@@ -157,7 +157,7 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
     f"{nome_amostra}",
     f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Brasília)",
     f"Total: {resumo_contagem['total']} UFC",
-    f"Densidade: {densidade:.2f} UFC/cm²"
+    f"Densidade: {round(resumo_contagem['total'] / (3.1416 * ((r * 0.90) ** 2) / 100), 2)} UFC/placa"
 ]
 
 y0 = 25
@@ -165,16 +165,18 @@ for i, linha in enumerate(texto_cabecalho):
     y = y0 + i * 22
     cv2.putText(desenhar, linha, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
 
-    _, buffer = cv2.imencode('.jpg', desenhar)
-    feedback_headers = {
-        "X-Feedback-Avaliadas": str(total_avaliadas),
-        "X-Feedback-Filtradas-Area": str(total_filtradas_area),
-        "X-Feedback-Filtradas-Circularidade": str(total_filtradas_circularidade),
-        "X-Feedback-Desenhadas": str(total_desenhadas),
-        "X-Feedback-Raio": str(r)
-    }
+# Finaliza imagem
+_, buffer = cv2.imencode('.jpg', desenhar)
 
-    return resumo_contagem, BytesIO(buffer.tobytes()), feedback_headers
+feedback_headers = {
+    "X-Feedback-Avaliadas": str(total_avaliadas),
+    "X-Feedback-Filtradas-Area": str(total_filtradas_area),
+    "X-Feedback-Filtradas-Circularidade": str(total_filtradas_circularidade),
+    "X-Feedback-Desenhadas": str(total_desenhadas),
+    "X-Feedback-Raio": str(r)
+}
+
+return resumo_contagem, BytesIO(buffer.tobytes()), feedback_headers
 
 @app.post("/contar/", summary="Conta e classifica colônias em uma imagem")
 async def contar_colonias_endpoint(
