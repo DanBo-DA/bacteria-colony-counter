@@ -180,11 +180,13 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
     _, buffer = cv2.imencode('.jpg', desenhar)
 
     feedback_headers = {
-        "X-Feedback-Avaliadas": str(total_avaliadas),
-        "X-Feedback-Filtradas-Area": str(total_filtradas_area),
-        "X-Feedback-Filtradas-Circularidade": str(total_filtradas_circularidade),
-        "X-Feedback-Desenhadas": str(total_desenhadas),
-        "X-Feedback-Raio": str(r)
+    "X-Feedback-Avaliadas": str(total_avaliadas),
+    "X-Feedback-Filtradas-Area": str(total_filtradas_area),
+    "X-Feedback-Filtradas-Circularidade": str(total_filtradas_circularidade),
+    "X-Feedback-Desenhadas": str(total_desenhadas),
+    "X-Feedback-Raio": str(r),
+    "X-Feedback-Densidade-Colonias-Cm2": str(densidade),
+    "X-Feedback-Estimativa-Total-Colonias": str(estimativa_total)
     }
 
     return resumo_contagem, BytesIO(buffer.tobytes()), feedback_headers
