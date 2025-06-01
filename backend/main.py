@@ -165,8 +165,8 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
         f"{nome_amostra}",
         f"{hora_brasilia.strftime('%Y-%m-%d %H:%M:%S')}",
         f"Total: {resumo_contagem['total']} UFC",
-        f"Densidade: {densidade:.2f} UFC/cm²",
-        f"Estimada: {estimativa_total:.2f} UFC/placa (57.5 cm²)"
+        f"Densidade: {densidade:.2f} UFC/cm^2",
+        f"Estimada: {estimativa_total:.2f} UFC/placa (57.5 cm^2)"
     ]
 
     # Fundo da legenda
