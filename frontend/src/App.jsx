@@ -30,7 +30,7 @@ function App() {
       setImagem(url);
 
       // CORREÇÃO AQUI: Mudança de 'X-Colonias' para 'X-Resumo-Total'
-      const totalColonias = response.headers.get('X-Resumo-Total');
+      const totalColonias = response.headers.get('x-resumo-total');
       setResultado(totalColonias !== null ? totalColonias : 'Indisponível');
     } catch (error) {
       console.error('Erro ao processar imagem:', error);
