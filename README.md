@@ -1,63 +1,59 @@
-# 🧫 Bacteria Colony Counter
+# 🧫 Colony Counter API - README
 
-A simple web app to automatically detect and count bacterial colonies in Petri dish images using FastAPI (backend with OpenCV) and React (frontend with Vite).
-
-## 📦 Project Structure
-
-```
-📁 backend
-├── main.py               # FastAPI server with OpenCV processing
-├── requirements.txt      # Python dependencies
-
-📁 frontend
-├── index.html
-├── package.json
-├── vite.config.js
-└── src/
-    ├── App.jsx           # Main React component
-    └── main.jsx          # Entry point
-```
-
----
+## 📄 Description
+This FastAPI-based application processes images of Petri dishes to count and classify bacterial colonies based on their shape and color. It uses image processing and segmentation techniques to detect colonies, and classifies them into four color categories: `amarela`, `bege`, `clara`, and `rosada`.
 
 ## 🚀 Features
+- Automatic detection of Petri dish using Hough Circle Transform
+- Manual override for dish coordinates and radius (x, y, r)
+- Classification of colonies based on color in HSV space
+- Filtering by area and circularity to improve accuracy
+- Visualization output with colored circles indicating colony classification
+- Response headers include a detailed summary and filtering feedback
 
-- Upload a photo of a Petri dish
-- Automatically detect colonies using image processing (OpenCV)
-- Returns a processed image with red circles around each colony
-- Counts colonies and displays result to user
+## 📬 API Endpoint
+### `POST /contar/`
+**Description:** Count and classify colonies in a Petri dish image.
 
----
+**Parameters:**
+- `file` (form-data, required): Image of the Petri dish (`.jpg`, `.png`)
+- `x` (form-data, optional): X-coordinate of the plate center. Auto-detected if not provided
+- `y` (form-data, optional): Y-coordinate of the plate center. Auto-detected if not provided
+- `r` (form-data, optional): Radius of the plate. Auto-detected if not provided
 
-## 🛠️ Installation & Usage
+**Response:**
+- A JPEG image with annotated colony detections
+- Response headers with detection summary and feedback:
+  - `X-Resumo-Total`, `X-Resumo-Amarela`, etc.
+  - `X-Feedback-Avaliadas`, `X-Feedback-Filtradas-Area`, `X-Feedback-Filtradas-Circularidade`, `X-Feedback-Desenhadas`
 
-### Backend (FastAPI)
+**Error Handling:**
+- Returns 422 if no Petri dish is detected and no manual coordinates are provided
+
+## 📦 Requirements
 ```bash
-cd backend
-pip install -r requirements.txt
+pip install fastapi uvicorn opencv-python numpy python-multipart scipy
+```
+
+## 🛠️ Run Locally
+```bash
 uvicorn main:app --reload
 ```
+Then open: `http://127.0.0.1:8000/docs` to interact with the API using Swagger UI.
 
-### Frontend (React)
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## 📌 Update Notes
+### Version 1.4.0
+- ➕ Added manual override for plate detection via `x`, `y`, `r` parameters
+- 🛠 Improved error message when automatic detection fails
+- 📤 Included detection feedback in response headers
+- 🔍 Refined filtering by area and circularity for better accuracy
+- 🧪 Added more robust classification via HSV mean filtering
 
-Make sure to update the backend URL in `App.jsx` to match your deployment address (e.g., Railway, local).
-
----
-
-## 🌐 Deployment
-
-- **Backend**: Deploy on [Railway](https://railway.app/) or [Render](https://render.com/)
-- **Frontend**: Deploy on [Vercel](https://vercel.com/) or [Netlify](https://www.netlify.com/)
-
-To embed in **Google Sites**, use the frontend Vercel link in an embed block.
+## 🔮 Future Work
+- [ ]  Allow user to draw ROI (Region of Interest) manually on `/docs` interface
+- [ ]  Improve support for noisy backgrounds and complex lighting
+- [ ]  Train a ML model to further improve classification
 
 ---
-
 ## 📄 License
-
 MIT License © 2025 Lucas Daniel Borges Lopes
