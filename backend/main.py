@@ -82,7 +82,7 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
         gray_eq = cv2.equalizeHist(gray_masked)
         blurred = cv2.GaussianBlur(gray_eq, (5, 5), 0)
 
-        # Parâmetros ajustados na interação anterior:
+        # Parâmetros de binarização e abertura (já ajustados):
         thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                        cv2.THRESH_BINARY_INV, 41, 4)
         opened = cv2.morphologyEx(thresh, cv2.MORPH_OPEN,
@@ -90,13 +90,8 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
 
         dist_transform = cv2.distanceTransform(opened, cv2.DIST_L2, 5)
 
-        # >>> INÍCIO DA NOVA MODIFICAÇÃO <<<
-
-        # Ajuste do 'size' para ndimage.maximum_filter: de 15 para 10
-        # Um valor menor pode ajudar a gerar mais marcadores, separando colônias mais próximas.
-        local_max = ndimage.maximum_filter(dist_transform, size=10) == dist_transform # Alterado aqui
-
-        # >>> FIM DA NOVA MODIFICAÇÃO <<<
+        # Parâmetro do ndimage.maximum_filter (já ajustado):
+        local_max = ndimage.maximum_filter(dist_transform, size=10) == dist_transform
 
         markers, _ = ndimage.label(local_max)
         markers = markers + 1
@@ -120,16 +115,25 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
             cnt = contours[0]
             area = cv2.contourArea(cnt)
             total_avaliadas += 1
-            if area < 1.5 or area > 800:
+
+            # >>> INÍCIO DAS NOVAS MODIFICAÇÕES - FILTROS <<<
+
+            # Ajuste do filtro de área: permitindo colônias um pouco menores (de 1.5 para 1.0)
+            if area < 1.0 or area > 800: # Alterado aqui
                 total_filtradas_area += 1
                 continue
+            
             perimeter = cv2.arcLength(cnt, True)
             if perimeter == 0:
                 continue
             circularity = 4 * np.pi * (area / (perimeter * perimeter))
-            if circularity < 0.45:
+
+            # Ajuste do filtro de circularidade: permitindo formas menos circulares (de 0.45 para 0.35)
+            if circularity < 0.35: # Alterado aqui
                 total_filtradas_circularidade += 1
                 continue
+
+            # >>> FIM DAS NOVAS MODIFICAÇÕES - FILTROS <<<
 
             (cx, cy), radius = cv2.minEnclosingCircle(cnt)
             center = (int(cx), int(cy))
