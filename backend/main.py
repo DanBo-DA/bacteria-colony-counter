@@ -1,238 +1,210 @@
-import React, { useRef, useState } from 'react';
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+import numpy as np
+import cv2
+from io import BytesIO
+from collections import Counter
+from datetime import datetime, timedelta, timezone
+import pandas as pd
+import os
+import logging
+from scipy import ndimage
 
-function App() {
-  const fileInputRef = useRef(null);
-  const [imagem, setImagem] = useState(null);
-  const [resultado, setResultado] = useState({});
-  const [feedback, setFeedback] = useState({});
-  const [processando, setProcessando] = useState(false);
-  const [nomeArquivo, setNomeArquivo] = useState("");
-  const [nomeAmostra, setNomeAmostra] = useState("");
-  const [logAnalises, setLogAnalises] = useState([]);
-  const [selecionados, setSelecionados] = useState({});
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-  const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+app = FastAPI(
+    title="API de Contagem de Colônias",
+    description="Processa imagens de placas de Petri para contar e classificar colônias.",
+    version="1.5.0"
+)
 
-  const handleReset = () => {
-    setImagem(null);
-    setResultado({});
-    setFeedback({});
-    setNomeArquivo("");
-    setNomeAmostra("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://contadorbacterias.netlify.app"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=[
+        "X-Resumo-Total", "X-Resumo-Amarela", "X-Resumo-Bege", "X-Resumo-Clara", "X-Resumo-Rosada",
+        "X-Feedback-Avaliadas", "X-Feedback-Filtradas-Area", "X-Feedback-Filtradas-Circularidade",
+        "X-Feedback-Desenhadas", "X-Feedback-Raio"
+    ]
+)
 
-  const handleImageUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+AREA_PADRAO_PLACA_CM2 = 57.5
 
-    setProcessando(true);
-    setResultado({});
-    setFeedback({});
-    setImagem(null);
-    setNomeArquivo(file.name);
+def classificar_cor_hsv(hsv_color_mean):
+    h, s, v = hsv_color_mean
+    if s < 40 and v > 190:
+        return 'clara'
+    elif 20 <= h <= 35 and s > 60 and v > 60:
+        return 'amarela'
+    elif (0 <= h <= 15 or 160 <= h <= 179) and s > 60 and v > 60:
+        return 'rosada'
+    else:
+        return 'bege'
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('nome_amostra', nomeAmostra || file.name);
+def detectar_placa(img_gray):
+    img_blur = cv2.medianBlur(img_gray, 5)
+    circulos = cv2.HoughCircles(img_blur, cv2.HOUGH_GRADIENT, dp=1.2, minDist=100,
+                                 param1=50, param2=30, minRadius=100, maxRadius=0)
+    if circulos is not None:
+        circulos = np.uint16(np.around(circulos))
+        logger.info(f"Placa detectada com centro em ({circulos[0][0][0]}, {circulos[0][0][1]}) e raio {circulos[0][0][2]}")
+        return circulos[0][0]
+    logger.warning("Nenhuma placa detectada na imagem.")
+    return None
 
-    try {
-      const response = await fetch('https://bacteria-colony-counter-production.up.railway.app/contar/', {
-        method: 'POST',
-        body: formData,
-      });
+def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_manual=None, r_manual=None):
+    file_bytes = np.asarray(bytearray(imagem_bytes), dtype=np.uint8)
+    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("Não foi possível decodificar a imagem.")
 
-      if (!response.ok) throw new Error('Erro na requisição');
+    desenhar = img.copy()
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-      const headers = {};
-      response.headers.forEach((valor, chave) => {
-        headers[chave] = valor;
-      });
+    if x_manual is not None and y_manual is not None and r_manual is not None:
+        x, y, r = int(x_manual), int(y_manual), int(r_manual)
+        logger.info(f"Usando parâmetros manuais para a placa: ({x}, {y}, {r})")
+    else:
+        circulo = detectar_placa(gray)
+        if circulo is None:
+            raise HTTPException(status_code=422, detail="Não foi possível detectar a placa de Petri automaticamente.")
+        x, y, r = circulo
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      setImagem(url);
+    r_margem = int(r * 0.90)
+    mask_placa = np.zeros(gray.shape, dtype=np.uint8)
+    cv2.circle(mask_placa, (x, y), r_margem, 255, -1)
+    img_masked = cv2.bitwise_and(img, img, mask=mask_placa)
+    gray_masked = cv2.bitwise_and(gray, gray, mask=mask_placa)
+    gray_eq = cv2.equalizeHist(gray_masked)
+    blurred = cv2.GaussianBlur(gray_eq, (5, 5), 0)
 
-      const resumo = {};
-      const dadosFeedback = {};
+    thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                   cv2.THRESH_BINARY_INV, 41, 4)
+    opened = cv2.morphologyEx(thresh, cv2.MORPH_OPEN,
+                               cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    dist_transform = cv2.distanceTransform(opened, cv2.DIST_L2, 5)
+    local_max = ndimage.maximum_filter(dist_transform, size=10) == dist_transform
+    markers, _ = ndimage.label(local_max)
+    markers = markers + 1
+    unknown = cv2.subtract(opened, np.uint8(local_max))
+    markers[unknown == 255] = 0
+    markers = cv2.watershed(img_masked, markers.astype(np.int32))
 
-      Object.entries(headers).forEach(([chave, valor]) => {
-        if (chave.toLowerCase().startsWith("x-resumo-")) {
-          const label = chave.replace("x-resumo-", "").toUpperCase();
-          resumo[label] = valor;
-        }
-        if (chave.toLowerCase().startsWith("x-feedback-")) {
-          const key = normalize(chave.replace("x-feedback-", ""));
-          dadosFeedback[key] = valor;
-        }
-      });
+    classificacoes_cores = []
+    total_avaliadas = 0
+    total_filtradas_area = 0
+    total_filtradas_circularidade = 0
+    total_desenhadas = 0
 
-      setResultado(resumo);
-      setFeedback(dadosFeedback);
+    for marker in np.unique(markers):
+        if marker <= 1:
+            continue
+        mask = np.uint8(markers == marker) * 255
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            continue
+        cnt = contours[0]
+        area = cv2.contourArea(cnt)
+        total_avaliadas += 1
 
-      const novaEntrada = {
-        nomeAmostra: nomeAmostra || file.name,
-        data: new Date().toLocaleDateString(),
-        hora: new Date().toLocaleTimeString(),
-        ...resumo,
-        ...dadosFeedback
-      };
-      setLogAnalises(prev => [...prev, novaEntrada]);
+        if area < 1.0 or area > 800:
+            total_filtradas_area += 1
+            continue
 
-    } catch (error) {
-      console.error('Erro ao processar imagem:', error);
-      setResultado({ ERRO: "Não foi possível processar." });
-    } finally {
-      setProcessando(false);
+        perimeter = cv2.arcLength(cnt, True)
+        if perimeter == 0:
+            continue
+        circularity = 4 * np.pi * (area / (perimeter * perimeter))
+        if circularity < 0.35:
+            total_filtradas_circularidade += 1
+            continue
+
+        (cx, cy), radius = cv2.minEnclosingCircle(cnt)
+        center = (int(cx), int(cy))
+        radius = int(radius)
+        if np.linalg.norm(np.array(center) - np.array((x, y))) > r_margem:
+            continue
+
+        mean_color_bgr = cv2.mean(img, mask=mask)[:3]
+        hsv_pixel = cv2.cvtColor(np.uint8([[mean_color_bgr]]), cv2.COLOR_BGR2HSV)
+        tipo = classificar_cor_hsv(hsv_pixel[0][0])
+        classificacoes_cores.append(tipo)
+
+        if radius > 50:
+            continue
+        cor = (0, 0, 255)
+        if tipo == 'amarela':
+            cor = (0, 255, 255)
+        elif tipo == 'rosada':
+            cor = (203, 192, 255)
+        elif tipo == 'clara':
+            cor = (255, 255, 255)
+        cv2.circle(desenhar, center, radius, cor, 2)
+        total_desenhadas += 1
+
+    resumo_contagem = dict(Counter(classificacoes_cores))
+    resumo_contagem['total'] = len(classificacoes_cores)
+
+    logger.info(f"Total avaliadas: {total_avaliadas}, Filtradas por área: {total_filtradas_area}, "
+                f"Filtradas por circularidade: {total_filtradas_circularidade}, Desenhadas: {total_desenhadas}, "
+                f"Contagem final: {resumo_contagem}")
+
+    area_pixel_placa = np.pi * (r_margem ** 2)
+    fator_pixel_para_cm2 = AREA_PADRAO_PLACA_CM2 / area_pixel_placa
+    area_amostrada = round(area_pixel_placa * fator_pixel_para_cm2, 2)
+    densidade = round(resumo_contagem['total'] / area_amostrada, 2) if area_amostrada > 0 else 0
+    estimativa_total = round(densidade * AREA_PADRAO_PLACA_CM2, 2)
+
+    hora_brasilia = datetime.now(timezone.utc) - timedelta(hours=3)
+    texto_cabecalho = [
+        f"{nome_amostra}",
+        f"{hora_brasilia.strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Total: {resumo_contagem['total']} UFC",
+        f"Densidade: {densidade:.2f} UFC/cm^2",
+        f"Estimada: {estimativa_total:.2f} UFC/placa (57.5 cm^2)"
+    ]
+
+    # Fundo da legenda
+    altura = 22 * len(texto_cabecalho) + 20
+    cv2.rectangle(desenhar, (5, 5), (380, 5 + altura), (0, 0, 0), -1)
+
+    for i, linha in enumerate(texto_cabecalho):
+        y = 25 + i * 22
+        cv2.putText(desenhar, linha, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+
+    _, buffer = cv2.imencode('.jpg', desenhar)
+
+    feedback_headers = {
+    "X-Feedback-Avaliadas": str(total_avaliadas),
+    "X-Feedback-Filtradas-Area": str(total_filtradas_area),
+    "X-Feedback-Filtradas-Circularidade": str(total_filtradas_circularidade),
+    "X-Feedback-Desenhadas": str(total_desenhadas),
+    "X-Feedback-Raio": str(r),
+    "X-Feedback-Densidade-Colonias-Cm2": str(densidade),
+    "X-Feedback-Estimativa-Total-Colonias": str(estimativa_total)
     }
-  };
 
-  const baixarImagem = () => {
-    if (imagem) {
-      const link = document.createElement('a');
-      link.href = imagem;
-      link.download = `resultado_${nomeArquivo}`;
-      link.click();
-    }
-  };
+    return resumo_contagem, BytesIO(buffer.tobytes()), feedback_headers
 
-  const exportarCSV = () => {
-    const selecionadosParaExportar = logAnalises.filter((_, idx) => selecionados[idx]);
-    if (selecionadosParaExportar.length === 0) return;
-    const colunas = ["nomeAmostra", "data", "hora", "TOTAL", "densidadecoloniascm2", "estimativatotalcolonias"];
-    const linhas = [colunas.join(",")];
-    selecionadosParaExportar.forEach(item => {
-      const linha = colunas.map(c => item[c] || "").join(",");
-      linhas.push(linha);
-    });
-    const blob = new Blob([linhas.join("\n")], { type: 'text/csv' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = "analises_colonias.csv";
-    link.click();
-  };
+@app.post("/contar/", summary="Conta e classifica colônias em uma imagem")
+async def contar_colonias_endpoint(
+    file: UploadFile = File(..., description="Imagem da placa de Petri"),
+    nome_amostra: str = Form(..., description="Identificação da amostra."),
+    x: int = Form(None),
+    y: int = Form(None),
+    r: int = Form(None)
+):
+    conteudo_arquivo = await file.read()
+    if not conteudo_arquivo:
+        raise HTTPException(status_code=400, detail="Arquivo enviado está vazio.")
 
-  const total = parseInt(resultado.TOTAL || 0);
-  const densidade = feedback["densidadecoloniascm2"] || 0;
-  const estimativa = feedback["estimativatotalcolonias"] || 0;
+    resumo, imagem_processada, feedback = processar_imagem(conteudo_arquivo, nome_amostra, x_manual=x, y_manual=y, r_manual=r)
+    headers = {f"X-Resumo-{k.capitalize()}": str(v) for k, v in resumo.items()}
+    headers.update(feedback)
 
-  return (
-    <div style={{ padding: 20, textAlign: 'center', backgroundColor: '#111', color: '#fff', minHeight: '100vh' }}>
-      <h1 style={{ fontSize: 32 }}>Contador de Colônias Bacterianas v1.5.1 (Alta Densidade)</h1>
-      <p style={{ backgroundColor: '#222', color: '#ddd', padding: '10px 15px', borderRadius: 8, maxWidth: 600, margin: '10px auto', fontSize: 14 }}>
-        Esta versão é otimizada para imagens com <strong>grande número de colônias(&gt;500 UFC/placa)</strong>.
-        Pode gerar falsos positivos em placas com baixa densidade ou interferências no fundo.
-      </p>
-
-      <input
-        type="file"
-        accept="image/*"
-        ref={fileInputRef}
-        onChange={handleImageUpload}
-        style={{ display: 'none' }}
-      />
-
-      <input
-        type="text"
-        placeholder="Nome da Amostra"
-        value={nomeAmostra}
-        onChange={e => setNomeAmostra(e.target.value)}
-        style={{ padding: 8, marginTop: 10, borderRadius: 6, border: '1px solid #444', backgroundColor: '#222', color: '#fff' }}
-      /><br />
-
-      {!imagem && (
-        <button onClick={() => fileInputRef.current?.click()} style={botaoEstilo}>📤 Enviar Imagem</button>
-      )}
-
-      {imagem && (
-        <div style={{ marginTop: 20 }}>
-          <img src={imagem} alt="Resultado" style={{ maxWidth: 500, width: '100%', borderRadius: 10 }} />
-          {processando && <p style={{ marginTop: 10 }}>🔄 Processando imagem...</p>}
-
-          {!processando && (
-            <div style={{ marginTop: 15 }}>
-              <h3>🧪 Resumo de Colônias</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <span style={{ color: '#fff', marginBottom: 4 }}><strong>TOTAL:</strong> {total}</span>
-                <span style={{ color: '#fff', marginBottom: 4 }}><strong>Densidade (UFC/cm²):</strong> {densidade}</span>
-                <span style={{ color: '#fff', marginBottom: 4 }}><strong>Estimativa Total (Placa 57.5cm²):</strong> {estimativa}</span>
-              </div>
-              {Object.keys(feedback).length > 0 && (
-                <div style={{ marginTop: 20 }}>
-                  <h4>⚙️ Detalhes Técnicos</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    {Object.entries(feedback).map(([chave, valor]) => (
-                      !["densidadecoloniascm2", "estimativatotalcolonias"].includes(chave) && (
-                        <span key={chave} style={{ color: '#ccc', fontSize: 13, marginBottom: 3 }}><strong>{chave}:</strong> {valor}</span>
-                      )
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div style={{ marginTop: 10 }}>
-                <button onClick={baixarImagem} style={botaoEstilo}>📥 Baixar Resultado</button>
-                <button onClick={handleReset} style={botaoEstilo}>♻️ Resetar</button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {logAnalises.length > 0 && (
-        <div style={{ marginTop: 30 }}>
-          <h3>📋 Histórico de Análises</h3>
-          <button onClick={exportarCSV} style={botaoEstilo}>⬇️ Exportar CSV</button>
-          <table style={{ width: '100%', marginTop: 10, borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr style={{ backgroundColor: '#222', color: '#ddd' }}>
-                <th></th>
-                <th>Data</th>
-                <th>Hora</th>
-                <th>Nome da Amostra</th>
-                <th>Total</th>
-                <th>Densidade (UFC/cm²)</th>
-                <th>Estimativa Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logAnalises.map((item, idx) => (
-                <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#1c1c1c' : '#2c2c2c', color: '#fff' }}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={!!selecionados[idx]}
-                      onChange={() => setSelecionados(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                    />
-                  </td>
-                  <td>{item.data}</td>
-                  <td>{item.hora}</td>
-                  <td>{item.nomeAmostra}</td>
-                  <td>{item.TOTAL}</td>
-                  <td>{item.densidadecoloniascm2}</td>
-                  <td>{item.estimativatotalcolonias}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <footer style={{ marginTop: 40, fontSize: 14, opacity: 0.6 }}>
-        👨‍🔬 Powered by <strong>Daniel Borges</strong>
-      </footer>
-    </div>
-  );
-}
-
-const botaoEstilo = {
-  backgroundColor: '#000',
-  color: '#fff',
-  border: '1px solid #fff',
-  padding: '10px 18px',
-  margin: '5px',
-  borderRadius: 8,
-  cursor: 'pointer',
-  fontWeight: 'bold',
-};
-
-export default App;
+    return StreamingResponse(imagem_processada, media_type="image/jpeg", headers=headers)
