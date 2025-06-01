@@ -150,8 +150,8 @@ function App() {
               <h3>🧪 Resumo de Colônias</h3>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <span style={{ color: '#fff', marginBottom: 4 }}><strong>TOTAL:</strong> {total}</span>
-                <span style={{ color: '#fff', marginBottom: 4 }}><strong>Densidade (UFC/cm²):</strong> {densidade}</span>
-                <span style={{ color: '#fff', marginBottom: 4 }}><strong>Estimativa Total (Placa 57.5cm²):</strong> {estimativa}</span>
+                <span style={{ color: '#fff', marginBottom: 4 }}><strong>Densidade (UFC/cm2):</strong> {densidade}</span>
+                <span style={{ color: '#fff', marginBottom: 4 }}><strong>Estimativa Total (Placa 57.5cm2):</strong> {estimativa}</span>
               </div>
               {Object.keys(feedback).length > 0 && (
                 <div style={{ marginTop: 20 }}>
