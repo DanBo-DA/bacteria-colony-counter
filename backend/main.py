@@ -180,3 +180,21 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
     }
 
     return resumo_contagem, BytesIO(buffer.tobytes()), feedback_headers
+
+@app.post("/contar/", summary="Conta e classifica colônias em uma imagem")
+async def contar_colonias_endpoint(
+    file: UploadFile = File(..., description="Imagem da placa de Petri"),
+    nome_amostra: str = Form(..., description="Identificação da amostra."),
+    x: int = Form(None),
+    y: int = Form(None),
+    r: int = Form(None)
+):
+    conteudo_arquivo = await file.read()
+    if not conteudo_arquivo:
+        raise HTTPException(status_code=400, detail="Arquivo enviado está vazio.")
+
+    resumo, imagem_processada, feedback = processar_imagem(conteudo_arquivo, nome_amostra, x_manual=x, y_manual=y, r_manual=r)
+    headers = {f"X-Resumo-{k.capitalize()}": str(v) for k, v in resumo.items()}
+    headers.update(feedback)
+
+    return StreamingResponse(imagem_processada, media_type="image/jpeg", headers=headers)
