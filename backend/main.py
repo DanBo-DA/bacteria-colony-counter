@@ -50,7 +50,7 @@ def detectar_placa(img_gray):
     logger.warning("Nenhuma placa detectada na imagem.")
     return None
 
-def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual=None):
+def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_manual=None, r_manual=None):
     file_bytes = np.asarray(bytearray(imagem_bytes), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     if img is None:
@@ -174,7 +174,7 @@ async def contar_colonias_endpoint(
     if not conteudo_arquivo:
         raise HTTPException(status_code=400, detail="Arquivo enviado está vazio.")
     
-    resumo, imagem_processada, feedback = processar_imagem(conteudo_arquivo, x_manual=x, y_manual=y, r_manual=r)
+    resumo, imagem_processada, feedback = processar_imagem(conteudo_arquivo, nome_amostra, x_manual=x, y_manual=y, r_manual=r)
     headers = {f"X-Resumo-{k.capitalize()}": str(v) for k, v in resumo.items()}
     headers.update(feedback)
 
