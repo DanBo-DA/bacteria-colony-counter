@@ -152,78 +152,31 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
                 f"Filtradas por circularidade: {total_filtradas_circularidade}, Desenhadas: {total_desenhadas}, "
                 f"Contagem final: {resumo_contagem}")
 
-    # Adicionando metadados na imagem
-    texto_cabecalho = [
-    f"{nome_amostra}",
-    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Brasília)",
-    f"Total: {resumo_contagem['total']} UFC",
-    f"Densidade: {round(resumo_contagem['total'] / (3.1416 * ((r * 0.90) ** 2) / 100), 2)} UFC/placa"
-]
-
-y0 = 25
-for i, linha in enumerate(texto_cabecalho):
-    y = y0 + i * 22
-    cv2.putText(desenhar, linha, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
-
-# estas linhas devem estar fora do for!
-_, buffer = cv2.imencode('.jpg', desenhar)
-
-feedback_headers = {
-    "X-Feedback-Avaliadas": str(total_avaliadas),
-    "X-Feedback-Filtradas-Area": str(total_filtradas_area),
-    "X-Feedback-Filtradas-Circularidade": str(total_filtradas_circularidade),
-    "X-Feedback-Desenhadas": str(total_desenhadas),
-    "X-Feedback-Raio": str(r)
-}
-
-return resumo_contagem, BytesIO(buffer.tobytes()), feedback_headers
-
-@app.post("/contar/", summary="Conta e classifica colônias em uma imagem")
-async def contar_colonias_endpoint(
-    file: UploadFile = File(..., description="Imagem da placa de Petri"),
-    nome_amostra: str = Form(..., description="Identificação da amostra."),
-    x: int = Form(None),
-    y: int = Form(None),
-    r: int = Form(None)
-):
-    conteudo_arquivo = await file.read()
-    if not conteudo_arquivo:
-        raise HTTPException(status_code=400, detail="Arquivo enviado está vazio.")
-    
-    resumo, imagem_processada, feedback = processar_imagem(conteudo_arquivo, nome_amostra, x_manual=x, y_manual=y, r_manual=r)
-    headers = {f"X-Resumo-{k.capitalize()}": str(v) for k, v in resumo.items()}
-    headers.update(feedback)
-
-    # 📋 LOG DA ANÁLISE
-    now = datetime.now()
-    data_hora = now.strftime("%Y-%m-%d %H:%M:%S")
-    raio = int(feedback.get("X-Feedback-Raio", r or 0))
-    area_amostrada = round(3.1416 * ((raio * 0.90) ** 2) / 100, 2)
-    densidade = round(resumo.get('total', 0) / area_amostrada, 2) if area_amostrada > 0 else 0
+    area_amostrada = round(3.1416 * (r_margem ** 2) / 100, 2)
+    densidade = round(resumo_contagem['total'] / area_amostrada, 2) if area_amostrada > 0 else 0
     estimativa_total = round(densidade * 57.5, 2)
 
-    dados_log = {
-        "amostra": nome_amostra,
-        "data_hora": data_hora,
-        "total": resumo.get('total', 0),
-        "amarela": resumo.get('amarela', 0),
-        "bege": resumo.get('bege', 0),
-        "clara": resumo.get('clara', 0),
-        "rosada": resumo.get('rosada', 0),
-        "avaliadas": feedback.get("X-Feedback-Avaliadas", 0),
-        "filtradas_area": feedback.get("X-Feedback-Filtradas-Area", 0),
-        "filtradas_circ": feedback.get("X-Feedback-Filtradas-Circularidade", 0),
-        "desenhadas": feedback.get("X-Feedback-Desenhadas", 0),
-        "area_amostrada_cm2": area_amostrada,
-        "densidade_colonias_cm2": densidade,
-        "estimativa_total_colonias": estimativa_total
+    texto_cabecalho = [
+        f"{nome_amostra}",
+        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Brasília)",
+        f"Total: {resumo_contagem['total']} UFC",
+        f"Densidade: {densidade:.2f} UFC/placa",
+        f"Estimada: {estimativa_total:.2f} UFC (57.5 cm²)"
+    ]
+
+    y0 = 25
+    for i, linha in enumerate(texto_cabecalho):
+        y = y0 + i * 22
+        cv2.putText(desenhar, linha, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+
+    _, buffer = cv2.imencode('.jpg', desenhar)
+
+    feedback_headers = {
+        "X-Feedback-Avaliadas": str(total_avaliadas),
+        "X-Feedback-Filtradas-Area": str(total_filtradas_area),
+        "X-Feedback-Filtradas-Circularidade": str(total_filtradas_circularidade),
+        "X-Feedback-Desenhadas": str(total_desenhadas),
+        "X-Feedback-Raio": str(r)
     }
 
-    caminho_log = "logs_colonias.csv"
-    df_log = pd.DataFrame([dados_log])
-    if os.path.exists(caminho_log):
-        df_log.to_csv(caminho_log, mode='a', header=False, index=False)
-    else:
-        df_log.to_csv(caminho_log, index=False)
-
-    return StreamingResponse(imagem_processada, media_type="image/jpeg", headers=headers)
+    return resumo_contagem, BytesIO(buffer.tobytes()), feedback_headers
