@@ -6,17 +6,22 @@ function App() {
   const [resultado, setResultado] = useState({});
   const [processando, setProcessando] = useState(false);
   const [nomeArquivo, setNomeArquivo] = useState("");
+  const [nomeAmostra, setNomeAmostra] = useState(""); // Novo estado para nome da amostra
 
   const handleReset = () => {
     setImagem(null);
     setResultado({});
     setNomeArquivo("");
+    setNomeAmostra("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleImageUpload = async (event) => {
     const file = event.target.files[0];
-    if (!file) return;
+    if (!file || !nomeAmostra.trim()) {
+      alert("Informe o nome da amostra e selecione uma imagem.");
+      return;
+    }
 
     setProcessando(true);
     setResultado({});
@@ -25,6 +30,7 @@ function App() {
 
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('nome_amostra', nomeAmostra); // Envia nome da amostra
 
     try {
       const response = await fetch('https://bacteria-colony-counter-production.up.railway.app/contar/?v=3', {
@@ -60,7 +66,7 @@ function App() {
     if (imagem) {
       const link = document.createElement('a');
       link.href = imagem;
-      link.download = `resultado_${nomeArquivo}`;
+      link.download = `resultado_${nomeAmostra || nomeArquivo}`;
       link.click();
     }
   };
@@ -68,15 +74,34 @@ function App() {
   return (
     <div style={{ padding: 20, textAlign: 'center', backgroundColor: '#111', color: '#fff', minHeight: '100vh' }}>
       <h1 style={{ fontSize: 32 }}> Contador de Colônias Bacterianas (Alta Densidade)</h1>
+      
       <p style={{
-  backgroundColor: '#222', color: '#ddd', padding: '10px 15px',
-  borderRadius: 8, maxWidth: 600, margin: '10px auto', fontSize: 14
-}}>
-  ⚠️ Esta versão é otimizada para imagens com <strong>grande número de colônias</strong>.
-  Pode gerar falsos positivos em placas com baixa densidade ou interferências no fundo.
-</p>
+        backgroundColor: '#222', color: '#ddd', padding: '10px 15px',
+        borderRadius: 8, maxWidth: 600, margin: '10px auto', fontSize: 14
+      }}>
+        ⚠️ Esta versão é otimizada para imagens com <strong>grande número de colônias</strong>.<br />
+        Pode gerar falsos positivos em placas com baixa densidade ou interferências no fundo.
+      </p>
 
+      {/* Campo para nome da amostra */}
+      <input
+        type="text"
+        placeholder="🧾 Nome da Amostra"
+        value={nomeAmostra}
+        onChange={(e) => setNomeAmostra(e.target.value)}
+        style={{
+          marginBottom: 10,
+          padding: '8px 12px',
+          borderRadius: 6,
+          border: '1px solid #444',
+          backgroundColor: '#222',
+          color: '#fff',
+          width: '60%'
+        }}
+      />
+      <br />
 
+      {/* Input oculto de imagem */}
       <input
         type="file"
         accept="image/*"
@@ -84,12 +109,15 @@ function App() {
         onChange={handleImageUpload}
         style={{ display: 'none' }}
       />
+
+      {/* Botão inicial */}
       {!imagem && (
         <button onClick={() => fileInputRef.current?.click()} style={botaoEstilo}>
           Enviar Imagem
         </button>
       )}
 
+      {/* Área de resultado */}
       {imagem && (
         <div style={{ marginTop: 20 }}>
           <img src={imagem} alt="Resultado" style={{ maxWidth: 500, width: '100%', borderRadius: 10 }} />
