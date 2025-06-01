@@ -89,7 +89,3 @@ Then open: `http://127.0.0.1:8000/docs` to interact with the API using Swagger U
 ## 📄 License
 
 MIT License © 2025 Lucas Daniel Borges Lopes
-
----
-
-Se quiser, posso gerar a atualização automaticamente no repositório GitHub via PR (com GitHub CLI ou por sugestão de commit). Deseja esse passo?
