@@ -169,10 +169,13 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
         f"Estimada: {estimativa_total:.2f} UFC/placa (57.5 cm²)"
     ]
 
-    y0 = 25
+    # Fundo da legenda
+    altura = 22 * len(texto_cabecalho) + 20
+    cv2.rectangle(desenhar, (5, 5), (380, 5 + altura), (0, 0, 0), -1)
+
     for i, linha in enumerate(texto_cabecalho):
-        y = y0 + i * 22
-        cv2.putText(desenhar, linha, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+        y = 25 + i * 22
+        cv2.putText(desenhar, linha, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
     _, buffer = cv2.imencode('.jpg', desenhar)
 
