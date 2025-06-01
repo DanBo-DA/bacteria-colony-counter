@@ -9,7 +9,11 @@ This FastAPI-based application processes images of Petri dishes to count and cla
 - Classification of colonies based on color in HSV space
 - Filtering by area and circularity to improve accuracy
 - Visualization output with colored circles indicating colony classification
-- Response headers include a detailed summary and filtering feedback
+- 🔽 Download processed image with one click
+- 🧮 Summary output displayed: total colonies + breakdown by color
+- ♻️ Reset button to upload new image easily
+- 📋 Response headers include a detailed summary and filtering feedback
+- 👨‍🔬 "Powered by Daniel Borges" badge displayed in UI footer
 
 ## 📬 API Endpoint
 ### `POST /contar/`
@@ -24,7 +28,7 @@ This FastAPI-based application processes images of Petri dishes to count and cla
 **Response:**
 - A JPEG image with annotated colony detections
 - Response headers with detection summary and feedback:
-  - `X-Resumo-Total`, `X-Resumo-Amarela`, etc.
+  - `X-Resumo-Total`, `X-Resumo-Amarela`, `X-Resumo-Bege`, `X-Resumo-Clara`, `X-Resumo-Rosada`
   - `X-Feedback-Avaliadas`, `X-Feedback-Filtradas-Area`, `X-Feedback-Filtradas-Circularidade`, `X-Feedback-Desenhadas`
 
 **Error Handling:**
@@ -42,19 +46,19 @@ uvicorn main:app --reload
 Then open: `http://127.0.0.1:8000/docs` to interact with the API using Swagger UI.
 
 ## 📌 Update Notes
-### Version 1.4.0
-- ➕ Added manual override for plate detection via `x`, `y`, `r` parameters
-- 🛠 Improved error message when automatic detection fails
-- 📤 Included detection feedback in response headers
-- 🔍 Refined filtering by area and circularity for better accuracy
-- 🧪 Added more robust classification via HSV mean filtering
+### Version 1.4.1
+- ✅ Expose custom headers (CORS fix)
+- 🎯 Improved header parsing in frontend
+- 🎨 New UI features:
+  - Total + colored count labels (`amarela`, `rosada`, etc)
+  - 📥 Button to download image
+  - 🔁 Reset button
+  - 👨‍🔬 Footer: "Powered by Daniel Borges"
 
 ## 🔮 Future Work
 - [ ] 🖱️ Allow user to draw ROI (Region of Interest) manually on `/docs` interface
 - [ ] 🌈 Improve support for noisy backgrounds and complex lighting
 - [ ] 🤖 Train a ML model to further improve classification
-- [ ] 🧠 Integrate k-NN or CNN model for enhanced colony type recognition
-- [ ] 📊 Enable export of detailed colony data in CSV format
 
 ---
 ## 📄 License
