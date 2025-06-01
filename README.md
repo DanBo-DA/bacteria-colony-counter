@@ -46,14 +46,16 @@ uvicorn main:app --reload
 Then open: `http://127.0.0.1:8000/docs` to interact with the API using Swagger UI.
 
 ## 📌 Update Notes
-### Version 1.4.1
+### Version 1.4.2
 - ✅ Expose custom headers (CORS fix)
 - 🎯 Improved header parsing in frontend
-- 🎨 New UI features:
-  - Total + colored count labels (`amarela`, `rosada`, etc)
-  - 📥 Button to download image
-  - 🔁 Reset button
-  - 👨‍🔬 Footer: "Powered by Daniel Borges"
+- 🎨 New UI elements:
+  - Display total and classification breakdown
+  - Show detailed feedback on evaluations and filters
+  - Download image
+  - Reset button for new upload
+- ℹ️ High-density use case warning displayed
+- 🧾 "Powered by Daniel Borges" footer added
 
 ## 🔮 Future Work
 - [ ] 🖱️ Allow user to draw ROI (Region of Interest) manually on `/docs` interface
