@@ -30,6 +30,9 @@ function App() {
     const formData = new FormData();
     formData.append('file', file);
 
+    // Essencial: Campo Obrigatorio no BackEnd
+    formData.append('nome_amostra', nomeAmostra || file.name);
+
     try {
       const response = await fetch('https://bacteria-colony-counter-production.up.railway.app/contar/', {
         method: 'POST',
