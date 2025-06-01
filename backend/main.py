@@ -81,10 +81,14 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
         gray_masked = cv2.bitwise_and(gray, gray, mask=mask_placa)
         gray_eq = cv2.equalizeHist(gray_masked)
         blurred = cv2.GaussianBlur(gray_eq, (5, 5), 0)
+
+        # LINHAS ALTERADAS AQUI
         thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY_INV, 31, 2)
+                                       cv2.THRESH_BINARY_INV, 41, 4) # blockSize 41, C 4
         opened = cv2.morphologyEx(thresh, cv2.MORPH_OPEN,
-                                   cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)))
+                                   cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))) # Elemento estruturante (5, 5)
+        # FIM DAS LINHAS ALTERADAS
+
         dist_transform = cv2.distanceTransform(opened, cv2.DIST_L2, 5)
         local_max = ndimage.maximum_filter(dist_transform, size=15) == dist_transform
         markers, _ = ndimage.label(local_max)
