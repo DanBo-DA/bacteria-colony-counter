@@ -165,7 +165,7 @@ for i, linha in enumerate(texto_cabecalho):
     y = y0 + i * 22
     cv2.putText(desenhar, linha, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
 
-# Finaliza imagem
+# estas linhas devem estar fora do for!
 _, buffer = cv2.imencode('.jpg', desenhar)
 
 feedback_headers = {
