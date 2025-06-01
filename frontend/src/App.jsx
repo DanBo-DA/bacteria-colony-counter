@@ -122,6 +122,12 @@ function App() {
     });
   };
 
+  const excluirTodos = () => {
+    setLogAnalises([]);
+    setSelecionados({});
+    setTodosSelecionados(false);
+  };
+
   const selecionarTodos = () => {
     const novoEstado = {};
     logAnalises.forEach((_, idx) => {
@@ -190,7 +196,7 @@ function App() {
               )}
               <div style={{ marginTop: 10 }}>
                 <button onClick={baixarImagem} style={botaoEstilo}>📥 Baixar Resultado</button>
-                <button onClick={handleReset} style={botaoEstilo}>♻️ Resetar</button>
+                <button onClick={handleReset} style={botaoEstilo}>♻️ Nova Imagem</button>
               </div>
             </div>
           )}
@@ -203,6 +209,7 @@ function App() {
           <div style={{ marginBottom: 10 }}>
             <button onClick={selecionarTodos} style={botaoEstilo}>{todosSelecionados ? "☑️ Desmarcar Todos" : "✅ Selecionar Todos"}</button>
             <button onClick={exportarCSV} style={botaoEstilo}>⬇️ Exportar Selecionados</button>
+            <button onClick={excluirTodos} style={botaoEstilo}>🗑️ Excluir Tudo</button>
           </div>
           <table style={{ width: '100%', marginTop: 10, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
