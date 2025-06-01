@@ -82,15 +82,22 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
         gray_eq = cv2.equalizeHist(gray_masked)
         blurred = cv2.GaussianBlur(gray_eq, (5, 5), 0)
 
-        # LINHAS ALTERADAS AQUI
+        # Parâmetros ajustados na interação anterior:
         thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY_INV, 41, 4) # blockSize 41, C 4
+                                       cv2.THRESH_BINARY_INV, 41, 4)
         opened = cv2.morphologyEx(thresh, cv2.MORPH_OPEN,
-                                   cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))) # Elemento estruturante (5, 5)
-        # FIM DAS LINHAS ALTERADAS
+                                   cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
 
         dist_transform = cv2.distanceTransform(opened, cv2.DIST_L2, 5)
-        local_max = ndimage.maximum_filter(dist_transform, size=15) == dist_transform
+
+        # >>> INÍCIO DA NOVA MODIFICAÇÃO <<<
+
+        # Ajuste do 'size' para ndimage.maximum_filter: de 15 para 10
+        # Um valor menor pode ajudar a gerar mais marcadores, separando colônias mais próximas.
+        local_max = ndimage.maximum_filter(dist_transform, size=10) == dist_transform # Alterado aqui
+
+        # >>> FIM DA NOVA MODIFICAÇÃO <<<
+
         markers, _ = ndimage.label(local_max)
         markers = markers + 1
         unknown = cv2.subtract(opened, np.uint8(local_max))
