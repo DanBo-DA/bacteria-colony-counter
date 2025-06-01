@@ -50,9 +50,11 @@ Then open: `http://127.0.0.1:8000/docs` to interact with the API using Swagger U
 - 🧪 Added more robust classification via HSV mean filtering
 
 ## 🔮 Future Work
-- [ ]  Allow user to draw ROI (Region of Interest) manually on `/docs` interface
-- [ ]  Improve support for noisy backgrounds and complex lighting
-- [ ]  Train a ML model to further improve classification
+- [ ] 🖱️ Allow user to draw ROI (Region of Interest) manually on `/docs` interface
+- [ ] 🌈 Improve support for noisy backgrounds and complex lighting
+- [ ] 🤖 Train a ML model to further improve classification
+- [ ] 🧠 Integrate k-NN or CNN model for enhanced colony type recognition
+- [ ] 📊 Enable export of detailed colony data in CSV format
 
 ---
 ## 📄 License
