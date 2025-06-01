@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 from io import BytesIO
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import os
 import logging
@@ -32,6 +32,8 @@ app.add_middleware(
         "X-Feedback-Desenhadas", "X-Feedback-Raio"
     ]
 )
+
+AREA_PADRAO_PLACA_CM2 = 57.5
 
 def classificar_cor_hsv(hsv_color_mean):
     h, s, v = hsv_color_mean
@@ -152,16 +154,19 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
                 f"Filtradas por circularidade: {total_filtradas_circularidade}, Desenhadas: {total_desenhadas}, "
                 f"Contagem final: {resumo_contagem}")
 
-    area_amostrada = round(3.1416 * (r_margem ** 2) / 100, 2)
+    area_pixel_placa = np.pi * (r_margem ** 2)
+    fator_pixel_para_cm2 = AREA_PADRAO_PLACA_CM2 / area_pixel_placa
+    area_amostrada = round(area_pixel_placa * fator_pixel_para_cm2, 2)
     densidade = round(resumo_contagem['total'] / area_amostrada, 2) if area_amostrada > 0 else 0
-    estimativa_total = round(densidade * 57.5, 2)
+    estimativa_total = round(densidade * AREA_PADRAO_PLACA_CM2, 2)
 
+    hora_brasilia = datetime.now(timezone.utc) - timedelta(hours=3)
     texto_cabecalho = [
         f"{nome_amostra}",
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} (Brasília)",
+        f"{hora_brasilia.strftime('%Y-%m-%d %H:%M:%S')}",
         f"Total: {resumo_contagem['total']} UFC",
-        f"Densidade: {densidade:.2f} UFC/placa",
-        f"Estimada: {estimativa_total:.2f} UFC (57.5 cm²)"
+        f"Densidade: {densidade:.2f} UFC/cm²",
+        f"Estimada: {estimativa_total:.2f} UFC/placa (57.5 cm²)"
     ]
 
     y0 = 25
