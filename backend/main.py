@@ -147,6 +147,10 @@ def processar_imagem(imagem_bytes: bytes, x_manual=None, y_manual=None, r_manual
                 f"Filtradas por circularidade: {total_filtradas_circularidade}, Desenhadas: {total_desenhadas}, "
                 f"Contagem final: {resumo_contagem}")
 
+    # Adicionando metadados na imagem
+    text = f"Nome: {nome_amostra}\nData: {datetime.now().strftime('%Y-%m-%d')}\nHora: {datetime.now().strftime('%H:%M:%S')}\nTotal: {resumo_contagem['total']}"
+    cv2.putText(desenhar, text, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
     _, buffer = cv2.imencode('.jpg', desenhar)
     feedback_headers = {
         "X-Feedback-Avaliadas": str(total_avaliadas),
