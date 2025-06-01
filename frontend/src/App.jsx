@@ -41,6 +41,11 @@ function App() {
 
       if (!response.ok) throw new Error('Erro na requisição');
 
+      const headers = {};
+      response.headers.forEach((valor, chave) => {
+        headers[chave] = valor;
+      });
+
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       setImagem(url);
@@ -48,7 +53,7 @@ function App() {
       const resumo = {};
       const dadosFeedback = {};
 
-      response.headers.forEach((valor, chave) => {
+      Object.entries(headers).forEach(([chave, valor]) => {
         if (chave.toLowerCase().startsWith("x-resumo-")) {
           const label = chave.replace("x-resumo-", "").toUpperCase();
           resumo[label] = valor;
