@@ -10,19 +10,18 @@ import logging
 from scipy import ndimage
 import time
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO) # Logs INFO e acima serão exibidos
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="API de Contagem de Colônias",
     description="Processa imagens de placas de Petri para contar e classificar colônias.",
-    version="1.6.5"  # Mantendo a versão, com depuração granular
+    version="1.6.6"  # Versão limpa pós-depuração
 )
 
-# Adicione a URL do seu ambiente de desenvolvimento local do Vite se necessário
 ALLOWED_ORIGINS = [
     "https://contadorbacterias.netlify.app",
-    # "http://localhost:5173", # Exemplo para Vite
+    # "http://localhost:5173", 
 ]
 
 app.add_middleware(
@@ -110,7 +109,6 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
     desenhar = img.copy()
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    # Usar 'r_detectado_placa' consistentemente para o raio da placa
     r_detectado_placa = 0 
 
     placa_detection_start_time = time.time()
@@ -135,7 +133,6 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
         raise HTTPException(status_code=422, detail="Raio da placa (r) é zero.")
 
     core_processing_start_time = time.time()
-    # Usar 'r_margem_calculada' consistentemente para o raio da subárea
     r_margem_calculada = int(r_detectado_placa * 0.90) 
     logger.info(f"[{nome_amostra}] 'r_margem_calculada' calculada como: {r_margem_calculada} (baseado em r_detectado_placa={r_detectado_placa})")
 
@@ -189,25 +186,27 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
         area = cv2.contourArea(cnt)
         total_avaliadas += 1
         if area < AREA_MIN_COLONIA or area > AREA_MAX_COLONIA:
-            if area < AREA_MIN_COLONIA: logger.debug(f"[{nome_amostra}] Colônia filtrada por área mínima: {area:.2f}px (limite: {AREA_MIN_COLONIA:.2f}px)")
-            else: logger.debug(f"[{nome_amostra}] Colônia filtrada por área máxima: {area:.2f}px (limite: {AREA_MAX_COLONIA:.2f}px)")
+            # Logs de colônias filtradas por área podem ser mantidos como DEBUG se desejado,
+            # ou removidos se forem muito verbosos para produção.
+            # if area < AREA_MIN_COLONIA: logger.debug(f"[{nome_amostra}] Colônia filtrada por área mínima: {area:.2f}px")
+            # else: logger.debug(f"[{nome_amostra}] Colônia filtrada por área máxima: {area:.2f}px")
             total_filtradas_area += 1
             continue
         perimeter = cv2.arcLength(cnt, True)
         if perimeter < MIN_PERIMETER_THRESHOLD:
-            logger.debug(f"[{nome_amostra}] Colônia filtrada por perímetro mínimo: {perimeter:.2f}px (limite: {MIN_PERIMETER_THRESHOLD:.2f}px)")
+            # logger.debug(f"[{nome_amostra}] Colônia filtrada por perímetro mínimo: {perimeter:.2f}px")
             total_filtradas_circularidade += 1
             continue
         circularity = 4 * np.pi * (area / (perimeter * perimeter))
         if circularity < CIRCULARIDADE_MIN:
-            logger.debug(f"[{nome_amostra}] Colônia filtrada por circularidade: {circularity:.2f} (limite: {CIRCULARIDADE_MIN:.2f})")
+            # logger.debug(f"[{nome_amostra}] Colônia filtrada por circularidade: {circularity:.2f}")
             total_filtradas_circularidade += 1
             continue
         (cx, cy), radius_colonia_float = cv2.minEnclosingCircle(cnt)
         center_colonia = (int(cx), int(cy))
         radius_colonia_int = int(radius_colonia_float)
         if np.linalg.norm(np.array(center_colonia) - np.array((x, y))) > r_margem_calculada: 
-            logger.debug(f"[{nome_amostra}] Colônia filtrada por estar fora da margem r_margem_calculada (centro col: {center_colonia}, centro placa: ({x},{y}), r_margem placa: {r_margem_calculada})")
+            # logger.debug(f"[{nome_amostra}] Colônia filtrada por estar fora da margem r_margem_calculada")
             continue
         if radius_colonia_float > (r_margem_calculada * MAX_COLONY_RADIUS_FACTOR_OF_PETRI_MARGIN): 
             logger.info(f"[{nome_amostra}] Colônia grande filtrada (raio colônia: {radius_colonia_float:.2f}px > {MAX_COLONY_RADIUS_FACTOR_OF_PETRI_MARGIN*100}% do r_margem_calculada da placa: {r_margem_calculada * MAX_COLONY_RADIUS_FACTOR_OF_PETRI_MARGIN:.2f}px)")
@@ -233,7 +232,7 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
                 f"Detalhe cores: {resumo_contagem}")
     logger.info(f"[{nome_amostra}] Tempo do núcleo de processamento (segmentação e filtros): {time.time() - core_processing_start_time:.4f}s")
 
-    # --- Início da Lógica de Densidade e Estimativa (Com Logs de Depuração Granular) ---
+    # --- Início da Lógica de Densidade e Estimativa (Limpa) ---
     total_contado_na_subarea = resumo_contagem.get('total', 0)
     
     densidade_ufc_por_cm2 = 0.0
@@ -241,34 +240,17 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
     area_efetiva_amostrada_cm2 = 0.0
     fracao_amostrada = 0.0
 
-    logger.info(f"[{nome_amostra}] INICIANDO CÁLCULO DE DENSIDADE: r_detectado_placa={r_detectado_placa}, r_margem_calculada={r_margem_calculada}")
+    logger.info(f"[{nome_amostra}] Calculando densidade: r_detectado_placa={r_detectado_placa}, r_margem_calculada={r_margem_calculada}")
 
     area_pixels_subarea = np.pi * (r_margem_calculada ** 2)
-    
-    # LOG DE DEPURAÇÃO (1) - Com verificação de tipo
-    logger.info(f"[{nome_amostra}] DEBUG: VALOR DE 'r_detectado_placa' (tipo: {type(r_detectado_placa)}) ANTES DE CALCULAR area_pixels_placa_inteira: {r_detectado_placa}")
-    
-    # Depuração Granular do Cálculo:
-    raio_para_calculo_area_total = float(r_detectado_placa) # Conversão explícita para float
-    logger.info(f"[{nome_amostra}] DEBUG INTERMEDIARIO: raio_para_calculo_area_total = {raio_para_calculo_area_total} (tipo: {type(raio_para_calculo_area_total)})")
-    
-    raio_ao_quadrado_para_area_total = raio_para_calculo_area_total ** 2
-    logger.info(f"[{nome_amostra}] DEBUG INTERMEDIARIO: raio_ao_quadrado_para_area_total = {raio_ao_quadrado_para_area_total}")
-    
-    valor_np_pi = np.pi
-    logger.info(f"[{nome_amostra}] DEBUG INTERMEDIARIO: valor_np_pi = {valor_np_pi}")
-        
-    area_pixels_placa_inteira = valor_np_pi * raio_ao_quadrado_para_area_total
-
-    # LOG DE DEPURAÇÃO (2)
-    logger.info(f"[{nome_amostra}] DEBUG: VALOR DE 'area_pixels_placa_inteira' CALCULADO: {area_pixels_placa_inteira:.2f}")
-
+    # Usar conversão explícita para float para o raio ao quadrado por robustez
+    area_pixels_placa_inteira = np.pi * (float(r_detectado_placa) ** 2) 
 
     if area_pixels_placa_inteira > 1e-6: 
         fracao_amostrada = area_pixels_subarea / area_pixels_placa_inteira
-        logger.info(f"[{nome_amostra}] Detalhes cálculo fração: r_margem_calculada={r_margem_calculada}px, r_detectado_placa(logado)={r_detectado_placa}px. "
+        logger.info(f"[{nome_amostra}] Detalhes cálculo fração: r_margem_calculada={r_margem_calculada}px, r_detectado_placa={r_detectado_placa}px. "
                     f"Área subárea (pixels): {area_pixels_subarea:.2f}, Área placa inteira (pixels): {area_pixels_placa_inteira:.2f}. "
-                    f"Fração Amostrada (calculada): {fracao_amostrada:.4f}")
+                    f"Fração Amostrada: {fracao_amostrada:.4f}")
 
         if fracao_amostrada > 1e-6: 
             estimativa_ufc_placa_inteira = total_contado_na_subarea / fracao_amostrada
@@ -295,7 +277,7 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
     texto_cabecalho = [
         f"{nome_amostra}",
         f"{hora_brasilia.strftime('%Y-%m-%d %H:%M:%S')}",
-        f"Contagem (subárea {fracao_amostrada*100:.0f}%): {total_contado_na_subarea} UFC",
+        f"Contagem TOTAL: {total_contado_na_subarea} UFC",
         f"Densidade: {densidade_ufc_por_cm2:.2f} UFC/cm^2",
         f"Estimativa Placa ({AREA_PADRAO_PLACA_CM2:.1f} cm^2): {round(estimativa_ufc_placa_inteira):.0f} UFC"
     ]
@@ -327,7 +309,7 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
         "X-Feedback-Filtradas-Circularidade": str(total_filtradas_circularidade),
         "X-Feedback-Filtradas-Tamanho-Maximo": str(total_filtradas_tamanho_maximo),
         "X-Feedback-Desenhadas": str(total_desenhadas),
-        "X-Feedback-Raio-Detectado-Px": str(r_detectado_placa), # Usar r_detectado_placa consistentemente
+        "X-Feedback-Raio-Detectado-Px": str(r_detectado_placa),
         "X-Feedback-Area-Amostrada-Cm2": f"{area_efetiva_amostrada_cm2:.2f}",
         "X-Feedback-Densidade-Colonias-Cm2": f"{densidade_ufc_por_cm2:.2f}",
         "X-Feedback-Estimativa-Total-Colonias": f"{round(estimativa_ufc_placa_inteira):.0f}"
@@ -342,14 +324,13 @@ async def contar_colonias_endpoint(
     nome_amostra: str = Form(..., description="Identificação da amostra."),
     x: int = Form(None, description="Coord. X manual do centro da placa (pixels na imagem original)"),
     y: int = Form(None, description="Coord. Y manual do centro da placa (pixels na imagem original)"),
-    r: int = Form(None, description="Raio manual da placa (pixels na imagem original)") # Nome do parâmetro da API é 'r'
+    r: int = Form(None, description="Raio manual da placa (pixels na imagem original)")
 ):
     conteudo_arquivo = await file.read()
     if not conteudo_arquivo:
         raise HTTPException(status_code=400, detail="Arquivo enviado está vazio.")
 
     try:
-        # Passar 'r' da API como 'r_manual' para a função processar_imagem
         resumo_da_contagem, imagem_processada, response_headers_dict = processar_imagem(
             conteudo_arquivo, nome_amostra, x_manual=x, y_manual=y, r_manual=r 
         )
