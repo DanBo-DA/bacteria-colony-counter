@@ -215,7 +215,7 @@ function App() {
 
   return (
     <div style={{ padding: 20, textAlign: 'center', backgroundColor: '#111', color: '#fff', minHeight: '100vh' }}>
-      <h1 style={{ fontSize: 32 }}>Contador de Colônias Bacterianas v1.6.5 (Alta Densidade)</h1>
+      <h1 style={{ fontSize: 32 }}>Contador de Colônias Bacterianas v1.6.6 (Alta Densidade)</h1>
       <p style={{ backgroundColor: '#222', color: '#ddd', padding: '10px 15px', borderRadius: 8, maxWidth: 600, margin: '10px auto', fontSize: 14 }}>
         ⚠️ Esta versão é otimizada para imagens com <strong>grande número de colônias(&gt;300 UFC/placa)</strong>.
         Pode gerar falsos positivos em placas com baixa densidade ou interferências no fundo.
