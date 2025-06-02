@@ -11,6 +11,7 @@ function App() {
   const [logAnalises, setLogAnalises] = useState([]);
   const [selecionados, setSelecionados] = useState({});
   const [todosSelecionados, setTodosSelecionados] = useState(false);
+  const [mensagemErroUI, setMensagemErroUI] = useState(""); // Novo estado para erros na UI
 
   const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -19,8 +20,10 @@ function App() {
     setResultado({});
     setFeedback({});
     setNomeArquivo("");
-    setNomeAmostra("");
+    // setNomeAmostra(""); // Manter o nome da amostra pode ser útil para re-processar a mesma amostra
     if (fileInputRef.current) fileInputRef.current.value = "";
+    setMensagemErroUI(""); // Limpar mensagem de erro
+    setProcessando(false); // Garantir que o estado de processamento seja resetado
   };
 
   const handleImageUpload = async (event) => {
@@ -32,6 +35,7 @@ function App() {
     setFeedback({});
     setImagem(null);
     setNomeArquivo(file.name);
+    setMensagemErroUI(""); // Limpar erros anteriores
 
     const formData = new FormData();
     formData.append('file', file);
@@ -43,7 +47,17 @@ function App() {
         body: formData,
       });
 
-      if (!response.ok) throw new Error('Erro na requisição');
+      if (!response.ok) {
+        // Tentar ler uma mensagem de erro do backend, se houver
+        let errorMsg = `Erro na requisição: ${response.status} ${response.statusText}`;
+        try {
+            const errorData = await response.json(); // Assumindo que o backend envia erros em JSON
+            errorMsg = errorData.detail || errorMsg; // 'detail' é comum em FastAPI
+        } catch (e) {
+            // Se não conseguir parsear o JSON, usa a mensagem de status
+        }
+        throw new Error(errorMsg);
+      }
 
       const headers = {};
       response.headers.forEach((valor, chave) => {
@@ -82,7 +96,8 @@ function App() {
 
     } catch (error) {
       console.error('Erro ao processar imagem:', error);
-      setResultado({ ERRO: "Não foi possível processar." });
+      setMensagemErroUI(error.message || "Não foi possível processar a imagem. Tente novamente.");
+      setResultado({ ERRO: "Falha no processamento." });
     } finally {
       setProcessando(false);
     }
@@ -99,7 +114,11 @@ function App() {
 
   const exportarCSV = () => {
     const selecionadosParaExportar = logAnalises.filter((_, idx) => selecionados[idx]);
-    if (selecionadosParaExportar.length === 0) return;
+    if (selecionadosParaExportar.length === 0) {
+        setMensagemErroUI("Nenhuma análise selecionada para exportação.");
+        return;
+    }
+    setMensagemErroUI(""); // Limpa msg de erro se houver
     const colunas = ["nomeAmostra", "data", "hora", "TOTAL", "densidadecoloniascm2", "estimativatotalcolonias"];
     const linhas = [colunas.join(",")];
     selecionadosParaExportar.forEach(item => {
@@ -155,6 +174,7 @@ function App() {
         ref={fileInputRef}
         onChange={handleImageUpload}
         style={{ display: 'none' }}
+        disabled={processando} // Desabilitar durante o processamento
       />
 
       <input
@@ -163,18 +183,51 @@ function App() {
         value={nomeAmostra}
         onChange={e => setNomeAmostra(e.target.value)}
         style={{ padding: 8, marginTop: 10, borderRadius: 6, border: '1px solid #444', backgroundColor: '#222', color: '#fff' }}
+        disabled={processando} // Desabilitar durante o processamento
       /><br />
 
-      {!imagem && (
-        <button onClick={() => fileInputRef.current?.click()} style={botaoEstilo}>📤 Enviar Imagem</button>
+      {/* Mensagem de Erro */}
+      {mensagemErroUI && (
+        <div style={{ 
+            color: 'white', 
+            marginTop: 15, 
+            marginBottom: 10, 
+            padding: '10px 15px', 
+            border: '1px solid #ff4d4d',
+            borderRadius: 8, 
+            backgroundColor: '#6b2222', // Um vermelho mais escuro para o fundo
+            maxWidth: 600,
+            margin: '10px auto',
+            fontSize: 14
+        }}>
+          <strong>Erro:</strong> {mensagemErroUI}
+        </div>
       )}
+
+      {/* Indicador de Processamento e Botão de Envio */}
+      {processando ? (
+        <div style={{ marginTop: 20, padding: 20, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 8 }}>
+          <p style={{fontSize: 18, fontWeight: 'bold'}}>🔄 Processando imagem, por favor aguarde...</p>
+          <p>Isso pode levar alguns segundos.</p>
+        </div>
+      ) : (
+        !imagem && ( // Só mostra o botão de enviar se não houver imagem e não estiver processando
+          <button 
+            onClick={() => fileInputRef.current?.click()} 
+            style={botaoEstilo} 
+            disabled={processando}
+          >
+            📤 Enviar Imagem
+          </button>
+        )
+      )}
+
 
       {imagem && (
         <div style={{ marginTop: 20 }}>
           <img src={imagem} alt="Resultado" style={{ maxWidth: 500, width: '100%', borderRadius: 10 }} />
-          {processando && <p style={{ marginTop: 10 }}>🔄 Processando imagem...</p>}
-
-          {!processando && (
+          
+          {!processando && Object.keys(resultado).length > 0 && !resultado.ERRO && ( // Só mostra resultados se não estiver processando e não houver erro explícito no resultado
             <div style={{ marginTop: 15 }}>
               <h3>🧪 Resumo de Colônias</h3>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -195,8 +248,12 @@ function App() {
                 </div>
               )}
               <div style={{ marginTop: 10 }}>
-                <button onClick={baixarImagem} style={botaoEstilo}>📥 Baixar Resultado</button>
-                <button onClick={handleReset} style={botaoEstilo}>♻️ Nova Imagem</button>
+                <button onClick={baixarImagem} style={botaoEstilo} disabled={processando}>
+                  {processando ? "Aguarde..." : "📥 Baixar Resultado"}
+                </button>
+                <button onClick={handleReset} style={botaoEstilo} disabled={processando}>
+                  {processando ? "Aguarde..." : "♻️ Nova Imagem"}
+                </button>
               </div>
             </div>
           )}
@@ -207,14 +264,14 @@ function App() {
         <div style={{ marginTop: 30 }}>
           <h3>📋 Histórico de Análises</h3>
           <div style={{ marginBottom: 10 }}>
-            <button onClick={selecionarTodos} style={botaoEstilo}>{todosSelecionados ? "☑️ Desmarcar Todos" : "✅ Selecionar Todos"}</button>
-            <button onClick={exportarCSV} style={botaoEstilo}>⬇️ Exportar Selecionados</button>
-            <button onClick={excluirTodos} style={botaoEstilo}>🗑️ Excluir Tudo</button>
+            <button onClick={selecionarTodos} style={botaoEstilo} disabled={processando}>{todosSelecionados ? "☑️ Desmarcar Todos" : "✅ Selecionar Todos"}</button>
+            <button onClick={exportarCSV} style={botaoEstilo} disabled={processando}>⬇️ Exportar Selecionados</button>
+            <button onClick={excluirTodos} style={botaoEstilo} disabled={processando}>🗑️ Excluir Tudo</button>
           </div>
           <table style={{ width: '100%', marginTop: 10, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ backgroundColor: '#222', color: '#ddd' }}>
-                <th></th>
+                <th><input type="checkbox" onChange={selecionarTodos} checked={todosSelecionados} disabled={processando} /></th>
                 <th>Data</th>
                 <th>Hora</th>
                 <th>Amostra</th>
@@ -227,14 +284,14 @@ function App() {
             <tbody>
               {logAnalises.map((item, idx) => (
                 <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#1c1c1c' : '#2c2c2c' }}>
-                  <td><input type="checkbox" checked={!!selecionados[idx]} onChange={() => setSelecionados(prev => ({ ...prev, [idx]: !prev[idx] }))} /></td>
+                  <td><input type="checkbox" checked={!!selecionados[idx]} onChange={() => setSelecionados(prev => ({ ...prev, [idx]: !prev[idx] }))} disabled={processando} /></td>
                   <td>{item.data}</td>
                   <td>{item.hora}</td>
                   <td>{item.nomeAmostra}</td>
                   <td>{item.TOTAL}</td>
                   <td>{item.densidadecoloniascm2}</td>
                   <td>{item.estimativatotalcolonias}</td>
-                  <td><button onClick={() => excluirEntrada(idx)} style={{ fontSize: 11, backgroundColor: '#800', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 4, cursor: 'pointer' }}>Excluir</button></td>
+                  <td><button onClick={() => excluirEntrada(idx)} style={{ fontSize: 11, backgroundColor: '#800', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 4, cursor: 'pointer' }} disabled={processando}>Excluir</button></td>
                 </tr>
               ))}
             </tbody>
