@@ -1,17 +1,22 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react'; // Adicionado useEffect
 
 function App() {
   const fileInputRef = useRef(null);
   const [imagem, setImagem] = useState(null);
   const [resultado, setResultado] = useState({});
   const [feedback, setFeedback] = useState({});
-  const [processando, setProcessando] = useState(false);
+  const [processando, setProcessando] = useState(false); // Abrangerá upload e processamento backend
+  const [uploadProgress, setUploadProgress] = useState(0); // Novo estado para progresso
+  const [statusUpload, setStatusUpload] = useState(""); // Mensagem durante o upload/processamento
   const [nomeArquivo, setNomeArquivo] = useState("");
   const [nomeAmostra, setNomeAmostra] = useState("");
   const [logAnalises, setLogAnalises] = useState([]);
   const [selecionados, setSelecionados] = useState({});
   const [todosSelecionados, setTodosSelecionados] = useState(false);
-  const [mensagemErroUI, setMensagemErroUI] = useState(""); // Novo estado para erros na UI
+  const [mensagemErroUI, setMensagemErroUI] = useState("");
+
+  // Referência para o XHR para poder abortar se necessário (opcional)
+  const xhrRef = useRef(null);
 
   const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -20,10 +25,14 @@ function App() {
     setResultado({});
     setFeedback({});
     setNomeArquivo("");
-    // setNomeAmostra(""); // Manter o nome da amostra pode ser útil para re-processar a mesma amostra
     if (fileInputRef.current) fileInputRef.current.value = "";
-    setMensagemErroUI(""); // Limpar mensagem de erro
-    setProcessando(false); // Garantir que o estado de processamento seja resetado
+    setMensagemErroUI("");
+    setProcessando(false);
+    setUploadProgress(0);
+    setStatusUpload("");
+    if (xhrRef.current) {
+      xhrRef.current.abort(); // Abortar requisição em andamento se houver
+    }
   };
 
   const handleImageUpload = async (event) => {
@@ -31,77 +40,126 @@ function App() {
     if (!file) return;
 
     setProcessando(true);
+    setUploadProgress(0);
+    setStatusUpload("Enviando imagem...");
     setResultado({});
     setFeedback({});
-    setImagem(null);
+    setImagem(null); // Limpa imagem anterior
     setNomeArquivo(file.name);
-    setMensagemErroUI(""); // Limpar erros anteriores
+    setMensagemErroUI("");
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('nome_amostra', nomeAmostra || file.name);
 
-    try {
-      const response = await fetch('https://bacteria-colony-counter-production.up.railway.app/contar/', {
-        method: 'POST',
-        body: formData,
-      });
+    const xhr = new XMLHttpRequest();
+    xhrRef.current = xhr; // Salva a referência
 
-      if (!response.ok) {
-        // Tentar ler uma mensagem de erro do backend, se houver
-        let errorMsg = `Erro na requisição: ${response.status} ${response.statusText}`;
-        try {
-            const errorData = await response.json(); // Assumindo que o backend envia erros em JSON
-            errorMsg = errorData.detail || errorMsg; // 'detail' é comum em FastAPI
-        } catch (e) {
-            // Se não conseguir parsear o JSON, usa a mensagem de status
+    // Monitorar progresso do upload
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percentComplete = Math.round((e.loaded / e.total) * 100);
+        setUploadProgress(percentComplete);
+        if (percentComplete < 100) {
+          setStatusUpload(`Enviando imagem: ${percentComplete}%`);
+        } else {
+          setStatusUpload("Upload completo. Processando no servidor...");
         }
-        throw new Error(errorMsg);
       }
+    };
 
-      const headers = {};
-      response.headers.forEach((valor, chave) => {
-        headers[chave] = valor;
-      });
+    // Upload concluído (não necessariamente com sucesso na API)
+    xhr.onload = () => {
+      xhrRef.current = null; // Limpa a referência
+      if (xhr.status >= 200 && xhr.status < 300) {
+        // Sucesso no upload e na resposta do backend
+        const headers = {};
+        const allHeaders = xhr.getAllResponseHeaders().trim().split(/[\r\n]+/);
+        allHeaders.forEach(line => {
+          const parts = line.split(': ');
+          const header = parts.shift();
+          const value = parts.join(': ');
+          headers[header.toLowerCase()] = value;
+        });
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      setImagem(url);
+        // Assumindo que a resposta é um blob (imagem)
+        const blob = xhr.response; // xhr.responseType = 'blob' deve ser setado
+        const url = URL.createObjectURL(blob);
+        setImagem(url);
 
-      const resumo = {};
-      const dadosFeedback = {};
+        const resumo = {};
+        const dadosFeedback = {};
 
-      Object.entries(headers).forEach(([chave, valor]) => {
-        if (chave.toLowerCase().startsWith("x-resumo-")) {
-          const label = chave.replace("x-resumo-", "").toUpperCase();
-          resumo[label] = valor;
+        Object.entries(headers).forEach(([chave, valor]) => {
+          if (chave.toLowerCase().startsWith("x-resumo-")) {
+            const label = chave.replace("x-resumo-", "").toUpperCase();
+            resumo[label] = valor;
+          }
+          if (chave.toLowerCase().startsWith("x-feedback-")) {
+            const key = normalize(chave.replace("x-feedback-", ""));
+            dadosFeedback[key] = valor;
+          }
+        });
+
+        setResultado(resumo);
+        setFeedback(dadosFeedback);
+        setStatusUpload("Processamento concluído!");
+
+        const novaEntrada = {
+          nomeAmostra: nomeAmostra || file.name,
+          data: new Date().toLocaleDateString(),
+          hora: new Date().toLocaleTimeString(),
+          ...resumo,
+          ...dadosFeedback
+        };
+        setLogAnalises(prev => [...prev, novaEntrada]);
+        setProcessando(false); // Terminou tudo
+
+      } else {
+        // Erro do servidor
+        let errorMsg = `Erro no servidor: ${xhr.status} ${xhr.statusText}`;
+        try {
+          if (xhr.responseText) {
+            const errorData = JSON.parse(xhr.responseText);
+            errorMsg = errorData.detail || errorMsg;
+          }
+        } catch (e) {
+          // Falha ao parsear JSON do erro
         }
-        if (chave.toLowerCase().startsWith("x-feedback-")) {
-          const key = normalize(chave.replace("x-feedback-", ""));
-          dadosFeedback[key] = valor;
-        }
-      });
+        setMensagemErroUI(errorMsg);
+        setResultado({ ERRO: "Falha no processamento." });
+        setProcessando(false);
+        setUploadProgress(0); // Resetar progresso em caso de erro
+        setStatusUpload("Falha no envio/processamento.");
+      }
+    };
 
-      setResultado(resumo);
-      setFeedback(dadosFeedback);
-
-      const novaEntrada = {
-        nomeAmostra: nomeAmostra || file.name,
-        data: new Date().toLocaleDateString(),
-        hora: new Date().toLocaleTimeString(),
-        ...resumo,
-        ...dadosFeedback
-      };
-      setLogAnalises(prev => [...prev, novaEntrada]);
-
-    } catch (error) {
-      console.error('Erro ao processar imagem:', error);
-      setMensagemErroUI(error.message || "Não foi possível processar a imagem. Tente novamente.");
-      setResultado({ ERRO: "Falha no processamento." });
-    } finally {
+    // Erro na requisição (rede, etc.)
+    xhr.onerror = () => {
+      xhrRef.current = null; // Limpa a referência
+      setMensagemErroUI("Erro de rede ou requisição falhou. Verifique sua conexão.");
       setProcessando(false);
-    }
+      setUploadProgress(0);
+      setStatusUpload("Falha na comunicação.");
+    };
+
+    // Requisição abortada
+    xhr.onabort = () => {
+        xhrRef.current = null; // Limpa a referência
+        setMensagemErroUI("Upload cancelado.");
+        setProcessando(false);
+        setUploadProgress(0);
+        setStatusUpload("Upload cancelado pelo usuário.");
+    };
+
+
+    xhr.open('POST', 'https://bacteria-colony-counter-production.up.railway.app/contar/', true);
+    xhr.responseType = 'blob'; // Importante para receber a imagem como blob
+    xhr.send(formData);
   };
+
+  // ... (resto do código: baixarImagem, exportarCSV, etc. permanecem os mesmos)
+
 
   const baixarImagem = () => {
     if (imagem) {
@@ -160,9 +218,10 @@ function App() {
   const densidade = feedback["densidadecoloniascm2"] || 0;
   const estimativa = feedback["estimativatotalcolonias"] || 0;
 
+
   return (
     <div style={{ padding: 20, textAlign: 'center', backgroundColor: '#111', color: '#fff', minHeight: '100vh' }}>
-      <h1 style={{ fontSize: 32 }}>Contador de Colônias Bacterianas v1.5.1 (Alta Densidade)</h1>
+      <h1 style={{ fontSize: 32 }}>Contador de Colônias Bacterianas v1.5.2 (Alta Densidade)</h1>
       <p style={{ backgroundColor: '#222', color: '#ddd', padding: '10px 15px', borderRadius: 8, maxWidth: 600, margin: '10px auto', fontSize: 14 }}>
         ⚠️ Esta versão é otimizada para imagens com <strong>grande número de colônias(&gt;500 UFC/placa)</strong>.
         Pode gerar falsos positivos em placas com baixa densidade ou interferências no fundo.
@@ -174,7 +233,7 @@ function App() {
         ref={fileInputRef}
         onChange={handleImageUpload}
         style={{ display: 'none' }}
-        disabled={processando} // Desabilitar durante o processamento
+        disabled={processando}
       />
 
       <input
@@ -183,10 +242,9 @@ function App() {
         value={nomeAmostra}
         onChange={e => setNomeAmostra(e.target.value)}
         style={{ padding: 8, marginTop: 10, borderRadius: 6, border: '1px solid #444', backgroundColor: '#222', color: '#fff' }}
-        disabled={processando} // Desabilitar durante o processamento
+        disabled={processando}
       /><br />
 
-      {/* Mensagem de Erro */}
       {mensagemErroUI && (
         <div style={{ 
             color: 'white', 
@@ -195,7 +253,7 @@ function App() {
             padding: '10px 15px', 
             border: '1px solid #ff4d4d',
             borderRadius: 8, 
-            backgroundColor: '#6b2222', // Um vermelho mais escuro para o fundo
+            backgroundColor: '#6b2222',
             maxWidth: 600,
             margin: '10px auto',
             fontSize: 14
@@ -204,30 +262,57 @@ function App() {
         </div>
       )}
 
-      {/* Indicador de Processamento e Botão de Envio */}
-      {processando ? (
-        <div style={{ marginTop: 20, padding: 20, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 8 }}>
-          <p style={{fontSize: 18, fontWeight: 'bold'}}>🔄 Processando imagem, por favor aguarde...</p>
-          <p>Isso pode levar alguns segundos.</p>
+      {/* Barra de Progresso e Status do Upload/Processamento */}
+      {processando && (
+        <div style={{ marginTop: 20, padding: 15, backgroundColor: 'rgba(50,50,50,0.8)', borderRadius: 8, maxWidth: 400, margin: '10px auto' }}>
+          <p style={{fontSize: 16, fontWeight: 'bold', marginBottom: 10}}>{statusUpload}</p>
+          {uploadProgress > 0 && ( // Só mostra a barra se o progresso for maior que 0
+            <div style={{ width: '100%', backgroundColor: '#555', borderRadius: 4, overflow: 'hidden', border: '1px solid #777' }}>
+              <div 
+                style={{ 
+                  width: `${uploadProgress}%`, 
+                  height: '20px', 
+                  backgroundColor: '#4caf50', 
+                  textAlign: 'center', 
+                  lineHeight: '20px', 
+                  color: 'white',
+                  transition: 'width 0.3s ease-in-out'
+                }}
+              >
+                {uploadProgress}%
+              </div>
+            </div>
+          )}
+           <button 
+            onClick={() => {
+                if (xhrRef.current) {
+                    xhrRef.current.abort();
+                }
+            }} 
+            style={{...botaoEstilo, backgroundColor: '#c00', marginTop:10, padding: '8px 15px', fontSize: '0.9em'}}
+            hidden={!xhrRef.current} // Só mostra se houver uma requisição XHR ativa
+            >
+            Cancelar Upload
+           </button>
         </div>
-      ) : (
-        !imagem && ( // Só mostra o botão de enviar se não houver imagem e não estiver processando
-          <button 
-            onClick={() => fileInputRef.current?.click()} 
-            style={botaoEstilo} 
-            disabled={processando}
-          >
-            📤 Enviar Imagem
-          </button>
-        )
+      )}
+
+      {!processando && !imagem && (
+        <button 
+          onClick={() => fileInputRef.current?.click()} 
+          style={botaoEstilo} 
+          disabled={processando}
+        >
+          📤 Enviar Imagem
+        </button>
       )}
 
 
-      {imagem && (
+      {imagem && ( // Mostra a imagem se ela existir (mesmo que o processamento tenha falhado, para ver o que foi enviado)
         <div style={{ marginTop: 20 }}>
-          <img src={imagem} alt="Resultado" style={{ maxWidth: 500, width: '100%', borderRadius: 10 }} />
+          <img src={imagem} alt="Resultado do Processamento" style={{ maxWidth: 500, width: '100%', borderRadius: 10 }} />
           
-          {!processando && Object.keys(resultado).length > 0 && !resultado.ERRO && ( // Só mostra resultados se não estiver processando e não houver erro explícito no resultado
+          {!processando && Object.keys(resultado).length > 0 && !resultado.ERRO && (
             <div style={{ marginTop: 15 }}>
               <h3>🧪 Resumo de Colônias</h3>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -249,10 +334,10 @@ function App() {
               )}
               <div style={{ marginTop: 10 }}>
                 <button onClick={baixarImagem} style={botaoEstilo} disabled={processando}>
-                  {processando ? "Aguarde..." : "📥 Baixar Resultado"}
+                  📥 Baixar Resultado
                 </button>
                 <button onClick={handleReset} style={botaoEstilo} disabled={processando}>
-                  {processando ? "Aguarde..." : "♻️ Nova Imagem"}
+                  ♻️ Nova Imagem
                 </button>
               </div>
             </div>
