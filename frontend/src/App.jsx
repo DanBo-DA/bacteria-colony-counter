@@ -1,13 +1,13 @@
-import React, { useRef, useState, useEffect } from 'react'; // Adicionado useEffect
+import React, { useRef, useState, useEffect } from 'react';
 
 function App() {
   const fileInputRef = useRef(null);
   const [imagem, setImagem] = useState(null);
   const [resultado, setResultado] = useState({});
   const [feedback, setFeedback] = useState({});
-  const [processando, setProcessando] = useState(false); // Abrangerá upload e processamento backend
-  const [uploadProgress, setUploadProgress] = useState(0); // Novo estado para progresso
-  const [statusUpload, setStatusUpload] = useState(""); // Mensagem durante o upload/processamento
+  const [processando, setProcessando] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [statusMensagem, setStatusMensagem] = useState(""); // Estado unificado para mensagens de status
   const [nomeArquivo, setNomeArquivo] = useState("");
   const [nomeAmostra, setNomeAmostra] = useState("");
   const [logAnalises, setLogAnalises] = useState([]);
@@ -15,7 +15,6 @@ function App() {
   const [todosSelecionados, setTodosSelecionados] = useState(false);
   const [mensagemErroUI, setMensagemErroUI] = useState("");
 
-  // Referência para o XHR para poder abortar se necessário (opcional)
   const xhrRef = useRef(null);
 
   const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -29,9 +28,9 @@ function App() {
     setMensagemErroUI("");
     setProcessando(false);
     setUploadProgress(0);
-    setStatusUpload("");
+    setStatusMensagem(""); // Limpa mensagem de status
     if (xhrRef.current) {
-      xhrRef.current.abort(); // Abortar requisição em andamento se houver
+      xhrRef.current.abort();
     }
   };
 
@@ -41,10 +40,10 @@ function App() {
 
     setProcessando(true);
     setUploadProgress(0);
-    setStatusUpload("Enviando imagem...");
+    setStatusMensagem("Preparando para enviar..."); // Mensagem inicial
     setResultado({});
     setFeedback({});
-    setImagem(null); // Limpa imagem anterior
+    setImagem(null);
     setNomeArquivo(file.name);
     setMensagemErroUI("");
 
@@ -53,26 +52,25 @@ function App() {
     formData.append('nome_amostra', nomeAmostra || file.name);
 
     const xhr = new XMLHttpRequest();
-    xhrRef.current = xhr; // Salva a referência
+    xhrRef.current = xhr;
 
-    // Monitorar progresso do upload
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         const percentComplete = Math.round((e.loaded / e.total) * 100);
         setUploadProgress(percentComplete);
         if (percentComplete < 100) {
-          setStatusUpload(`Enviando imagem: ${percentComplete}%`);
+          setStatusMensagem(`Enviando imagem: ${percentComplete}%`);
         } else {
-          setStatusUpload("Upload completo. Processando no servidor...");
+          // O upload para o servidor (transferência de bytes) está completo.
+          // Agora estamos aguardando o processamento do backend.
+          setStatusMensagem("Upload concluído. Aguarde, processando no servidor...");
         }
       }
     };
 
-    // Upload concluído (não necessariamente com sucesso na API)
     xhr.onload = () => {
-      xhrRef.current = null; // Limpa a referência
+      xhrRef.current = null;
       if (xhr.status >= 200 && xhr.status < 300) {
-        // Sucesso no upload e na resposta do backend
         const headers = {};
         const allHeaders = xhr.getAllResponseHeaders().trim().split(/[\r\n]+/);
         allHeaders.forEach(line => {
@@ -82,8 +80,7 @@ function App() {
           headers[header.toLowerCase()] = value;
         });
 
-        // Assumindo que a resposta é um blob (imagem)
-        const blob = xhr.response; // xhr.responseType = 'blob' deve ser setado
+        const blob = xhr.response;
         const url = URL.createObjectURL(blob);
         setImagem(url);
 
@@ -103,7 +100,7 @@ function App() {
 
         setResultado(resumo);
         setFeedback(dadosFeedback);
-        setStatusUpload("Processamento concluído!");
+        setStatusMensagem("Processamento concluído!"); // Sucesso final
 
         const novaEntrada = {
           nomeAmostra: nomeAmostra || file.name,
@@ -114,9 +111,9 @@ function App() {
         };
         setLogAnalises(prev => [...prev, novaEntrada]);
         setProcessando(false); // Terminou tudo
+        // Poderia limpar setStatusMensagem após um tempo ou deixar "Processamento concluído!"
 
       } else {
-        // Erro do servidor
         let errorMsg = `Erro no servidor: ${xhr.status} ${xhr.statusText}`;
         try {
           if (xhr.responseText) {
@@ -124,42 +121,39 @@ function App() {
             errorMsg = errorData.detail || errorMsg;
           }
         } catch (e) {
-          // Falha ao parsear JSON do erro
+          // Falha ao parsear JSON
         }
         setMensagemErroUI(errorMsg);
         setResultado({ ERRO: "Falha no processamento." });
         setProcessando(false);
-        setUploadProgress(0); // Resetar progresso em caso de erro
-        setStatusUpload("Falha no envio/processamento.");
+        setUploadProgress(0);
+        setStatusMensagem("Falha no processamento."); // Erro do backend
       }
     };
 
-    // Erro na requisição (rede, etc.)
     xhr.onerror = () => {
-      xhrRef.current = null; // Limpa a referência
+      xhrRef.current = null;
       setMensagemErroUI("Erro de rede ou requisição falhou. Verifique sua conexão.");
       setProcessando(false);
       setUploadProgress(0);
-      setStatusUpload("Falha na comunicação.");
+      setStatusMensagem("Falha na comunicação."); // Erro de rede
     };
 
-    // Requisição abortada
     xhr.onabort = () => {
-        xhrRef.current = null; // Limpa a referência
-        setMensagemErroUI("Upload cancelado.");
+        xhrRef.current = null;
+        // setMensagemErroUI("Upload cancelado."); // Pode ser redundante se o statusMensagem já indicar
         setProcessando(false);
         setUploadProgress(0);
-        setStatusUpload("Upload cancelado pelo usuário.");
+        setStatusMensagem("Envio cancelado pelo usuário.");
     };
 
 
     xhr.open('POST', 'https://bacteria-colony-counter-production.up.railway.app/contar/', true);
-    xhr.responseType = 'blob'; // Importante para receber a imagem como blob
+    xhr.responseType = 'blob';
     xhr.send(formData);
   };
 
   // ... (resto do código: baixarImagem, exportarCSV, etc. permanecem os mesmos)
-
 
   const baixarImagem = () => {
     if (imagem) {
@@ -221,7 +215,7 @@ function App() {
 
   return (
     <div style={{ padding: 20, textAlign: 'center', backgroundColor: '#111', color: '#fff', minHeight: '100vh' }}>
-      <h1 style={{ fontSize: 32 }}>Contador de Colônias Bacterianas v1.5.2 (Alta Densidade)</h1>
+      <h1 style={{ fontSize: 32 }}>Contador de Colônias Bacterianas v1.5.3 (Alta Densidade)</h1>
       <p style={{ backgroundColor: '#222', color: '#ddd', padding: '10px 15px', borderRadius: 8, maxWidth: 600, margin: '10px auto', fontSize: 14 }}>
         ⚠️ Esta versão é otimizada para imagens com <strong>grande número de colônias(&gt;500 UFC/placa)</strong>.
         Pode gerar falsos positivos em placas com baixa densidade ou interferências no fundo.
@@ -265,9 +259,10 @@ function App() {
       {/* Barra de Progresso e Status do Upload/Processamento */}
       {processando && (
         <div style={{ marginTop: 20, padding: 15, backgroundColor: 'rgba(50,50,50,0.8)', borderRadius: 8, maxWidth: 400, margin: '10px auto' }}>
-          <p style={{fontSize: 16, fontWeight: 'bold', marginBottom: 10}}>{statusUpload}</p>
-          {uploadProgress > 0 && ( // Só mostra a barra se o progresso for maior que 0
-            <div style={{ width: '100%', backgroundColor: '#555', borderRadius: 4, overflow: 'hidden', border: '1px solid #777' }}>
+          <p style={{fontSize: 16, fontWeight: 'bold', marginBottom: 10}}>{statusMensagem}</p>
+          {/* Mostrar a barra de progresso apenas durante a fase de upload efetivo */}
+          {uploadProgress > 0 && uploadProgress < 100 && (
+            <div style={{ width: '100%', backgroundColor: '#555', borderRadius: 4, overflow: 'hidden', border: '1px solid #777', marginBottom: 10 }}>
               <div 
                 style={{ 
                   width: `${uploadProgress}%`, 
@@ -276,23 +271,40 @@ function App() {
                   textAlign: 'center', 
                   lineHeight: '20px', 
                   color: 'white',
-                  transition: 'width 0.3s ease-in-out'
+                  transition: 'width 0.3s ease-in-out' // Mantém a transição suave
                 }}
               >
                 {uploadProgress}%
               </div>
             </div>
           )}
+           {/* Mostrar barra completa se o upload terminou mas ainda está processando */}
+           {uploadProgress === 100 && statusMensagem.includes("Aguarde, processando") && (
+             <div style={{ width: '100%', backgroundColor: '#555', borderRadius: 4, overflow: 'hidden', border: '1px solid #777', marginBottom: 10 }}>
+                <div 
+                    style={{ 
+                    width: `100%`, 
+                    height: '20px', 
+                    backgroundColor: '#2a782c', // Um verde um pouco diferente para indicar "completo mas aguardando"
+                    textAlign: 'center', 
+                    lineHeight: '20px', 
+                    color: 'white'
+                    }}
+                >
+                    Enviado!
+                </div>
+            </div>
+           )}
            <button 
             onClick={() => {
                 if (xhrRef.current) {
                     xhrRef.current.abort();
                 }
             }} 
-            style={{...botaoEstilo, backgroundColor: '#c00', marginTop:10, padding: '8px 15px', fontSize: '0.9em'}}
-            hidden={!xhrRef.current} // Só mostra se houver uma requisição XHR ativa
+            style={{...botaoEstilo, backgroundColor: '#c00', padding: '8px 15px', fontSize: '0.9em'}}
+            // hidden={!xhrRef.current} //  Pode ser sempre visível enquanto 'processando' for true
             >
-            Cancelar Upload
+            Cancelar
            </button>
         </div>
       )}
@@ -307,8 +319,7 @@ function App() {
         </button>
       )}
 
-
-      {imagem && ( // Mostra a imagem se ela existir (mesmo que o processamento tenha falhado, para ver o que foi enviado)
+      {imagem && (
         <div style={{ marginTop: 20 }}>
           <img src={imagem} alt="Resultado do Processamento" style={{ maxWidth: 500, width: '100%', borderRadius: 10 }} />
           
