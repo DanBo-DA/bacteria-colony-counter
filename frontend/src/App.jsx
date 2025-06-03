@@ -17,6 +17,30 @@ function App() {
 
   const xhrRef = useRef(null);
 
+  // Carrega histórico salvo no navegador ao inicializar
+  useEffect(() => {
+    try {
+      const salvo = localStorage.getItem('logAnalises');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed)) {
+          setLogAnalises(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Falha ao carregar histórico do localStorage', e);
+    }
+  }, []);
+
+  // Salva histórico sempre que sofrer alterações
+  useEffect(() => {
+    try {
+      localStorage.setItem('logAnalises', JSON.stringify(logAnalises));
+    } catch (e) {
+      console.error('Falha ao salvar histórico no localStorage', e);
+    }
+  }, [logAnalises]);
+
   // Libera o objeto URL anterior quando a imagem muda
   useEffect(() => {
     return () => {
