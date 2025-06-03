@@ -18,13 +18,12 @@ def bump_version():
     data['version'] = new_version
     pkg_path.write_text(json.dumps(data, indent=2) + '\n')
 
-    for backend_file in ['backend/main.py', 'backend/mainCS.py']:
-        path = Path(backend_file)
-        text = path.read_text()
-        text = re.sub(r'version="[0-9.]+"', f'version="{new_version}"', text)
-        path.write_text(text)
+    backend_file = Path('backend/main.py')
+    text = backend_file.read_text()
+    text = re.sub(r'version="[0-9.]+"', f'version="{new_version}"', text)
+    backend_file.write_text(text)
 
-    subprocess.run(['git', 'add', 'frontend/package.json', 'backend/main.py', 'backend/mainCS.py'], check=True)
+    subprocess.run(['git', 'add', 'frontend/package.json', 'backend/main.py'], check=True)
     subprocess.run(['git', 'commit', '--no-verify', '-m', 'Bump version'], check=True)
 
 

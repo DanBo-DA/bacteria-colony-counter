@@ -113,8 +113,8 @@ The frontend reads this variable using `import.meta.env.VITE_API_URL` to send re
 The repository provides a helper script at `scripts/bump_version.py` to keep the
 API and frontend versions in sync. Running the script increments the version in
 `frontend/package.json`, updates the `version` argument of the `FastAPI()`
-instances in `backend/main.py` and `backend/mainCS.py`, and commits the changes
-with the message `Bump version`.
+instance in `backend/main.py`, and commits the changes with the message
+`Bump version`.
 
 Run it manually whenever you need to bump the version:
 
