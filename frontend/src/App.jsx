@@ -4,6 +4,8 @@ import ProgressBar from './components/ProgressBar';
 import ResultSection from './components/ResultSection';
 import HistorySection from './components/HistorySection';
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 function App() {
   const fileInputRef = useRef(null);
   const [imagem, setImagem] = useState(null);
@@ -188,7 +190,7 @@ function App() {
     };
 
 
-    xhr.open('POST', 'https://bacteria-colony-counter-production.up.railway.app/contar/', true);
+    xhr.open('POST', `${API_URL}/contar/`, true);
     xhr.responseType = 'blob';
     xhr.send(formData);
   };
@@ -263,9 +265,9 @@ function App() {
 
 
   return (
-    <div style={{ padding: 20, textAlign: 'center', backgroundColor: '#111', color: '#fff', minHeight: '100vh' }}>
-      <h1 style={{ fontSize: 32 }}>Contador de Colônias Bacterianas v1.6.6 (Alta Densidade)</h1>
-      <p style={{ backgroundColor: '#222', color: '#ddd', padding: '10px 15px', borderRadius: 8, maxWidth: 600, margin: '10px auto', fontSize: 14 }}>
+    <div className="app-container">
+      <h1 className="app-header">Contador de Colônias Bacterianas v1.6.6 (Alta Densidade)</h1>
+      <p className="caution-msg">
         ⚠️ Esta versão é otimizada para imagens com <strong>grande número de colônias(&gt;300 UFC/placa)</strong>.
         Pode gerar falsos positivos em placas com baixa densidade ou interferências no fundo.
       </p>
@@ -310,7 +312,7 @@ function App() {
         processando={processando}
       />
 
-      <footer style={{ marginTop: 40, fontSize: 14, opacity: 0.6 }}>
+      <footer className="footer-info">
         👨‍🔬 Powered by <strong>Daniel Borges</strong>
       </footer>
       </div>

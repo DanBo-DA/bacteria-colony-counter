@@ -1,16 +1,5 @@
 import React from 'react';
 
-const botaoEstilo = {
-  backgroundColor: '#000',
-  color: '#fff',
-  border: '1px solid #fff',
-  padding: '10px 18px',
-  margin: '5px',
-  borderRadius: 8,
-  cursor: 'pointer',
-  fontWeight: 'bold',
-};
-
 function ResultSection({ imagem, processando, resultado, feedback, onBaixar, onReset }) {
   if (!imagem) return null;
 
@@ -19,34 +8,34 @@ function ResultSection({ imagem, processando, resultado, feedback, onBaixar, onR
   const estimativa = feedback["estimativatotalcolonias"] || 0;
 
   return (
-    <div style={{ marginTop: 20 }}>
-      <img src={imagem} alt="Resultado do Processamento" style={{ maxWidth: 500, width: '100%', borderRadius: 10 }} />
+    <div className="result-section">
+      <img src={imagem} alt="Resultado do Processamento" className="result-image" />
 
       {!processando && Object.keys(resultado).length > 0 && !resultado.ERRO && (
-        <div style={{ marginTop: 15 }}>
+        <div className="summary-container">
           <h3>🧪 Resumo de Colônias</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ color: '#fff', marginBottom: 4 }}><strong>TOTAL:</strong> {total}</span>
-            <span style={{ color: '#fff', marginBottom: 4 }}><strong>Densidade (UFC/cm2):</strong> {densidade}</span>
-            <span style={{ color: '#fff', marginBottom: 4 }}><strong>Estimativa Total (Placa 57.5cm2):</strong> {estimativa}</span>
+          <div className="summary-content">
+            <span className="summary-row"><strong>TOTAL:</strong> {total}</span>
+            <span className="summary-row"><strong>Densidade (UFC/cm2):</strong> {densidade}</span>
+            <span className="summary-row"><strong>Estimativa Total (Placa 57.5cm2):</strong> {estimativa}</span>
           </div>
           {Object.keys(feedback).length > 0 && (
-            <div style={{ marginTop: 20 }}>
+            <div className="details-container">
               <h4>⚙️ Detalhes Técnicos</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div className="details-content">
                 {Object.entries(feedback).map(([chave, valor]) => (
                   !["densidadecoloniascm2", "estimativatotalcolonias"].includes(chave) && (
-                    <span key={chave} style={{ color: '#ccc', fontSize: 13, marginBottom: 3 }}><strong>{chave}:</strong> {valor}</span>
+                    <span key={chave} className="details-item"><strong>{chave}:</strong> {valor}</span>
                   )
                 ))}
               </div>
             </div>
           )}
-          <div style={{ marginTop: 10 }}>
-            <button onClick={onBaixar} style={botaoEstilo} disabled={processando}>
+          <div className="buttons-container">
+            <button onClick={onBaixar} className="btn" disabled={processando}>
               📥 Baixar Resultado
             </button>
-            <button onClick={onReset} style={botaoEstilo} disabled={processando}>
+            <button onClick={onReset} className="btn" disabled={processando}>
               ♻️ Nova Imagem
             </button>
           </div>
