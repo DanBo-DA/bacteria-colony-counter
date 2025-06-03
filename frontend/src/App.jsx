@@ -17,9 +17,21 @@ function App() {
 
   const xhrRef = useRef(null);
 
+  // Libera o objeto URL anterior quando a imagem muda
+  useEffect(() => {
+    return () => {
+      if (imagem) {
+        URL.revokeObjectURL(imagem);
+      }
+    };
+  }, [imagem]);
+
   const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
 
   const handleReset = () => {
+    if (imagem) {
+      URL.revokeObjectURL(imagem);
+    }
     setImagem(null);
     setResultado({});
     setFeedback({});

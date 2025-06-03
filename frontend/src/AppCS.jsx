@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 
 function App() {
   const fileInputRef = useRef(null);
@@ -13,9 +13,21 @@ function App() {
   const [todosSelecionados, setTodosSelecionados] = useState(false);
   const [mensagemErroUI, setMensagemErroUI] = useState(""); // Novo estado para erros na UI
 
+  // Revoga o objeto URL antigo sempre que uma nova imagem é definida
+  useEffect(() => {
+    return () => {
+      if (imagem) {
+        URL.revokeObjectURL(imagem);
+      }
+    };
+  }, [imagem]);
+
   const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
 
   const handleReset = () => {
+    if (imagem) {
+      URL.revokeObjectURL(imagem);
+    }
     setImagem(null);
     setResultado({});
     setFeedback({});
