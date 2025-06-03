@@ -1,0 +1,3 @@
+#!/bin/sh
+# Automatically bump version before committing
+python3 scripts/bump_version.py
