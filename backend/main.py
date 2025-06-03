@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="API de Contagem de Colônias",
     description="Processa imagens de placas de Petri para contar e classificar colônias.",
-    version="1.6.6"  # Versão limpa pós-depuração
+    version="1.6.7"  # Versão limpa pós-depuração
 )
 
 ALLOWED_ORIGINS = [

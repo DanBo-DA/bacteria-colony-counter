@@ -82,10 +82,18 @@ npm install
 npm run build
 ```
 
+Create a `.env` file in the project root defining the API base URL:
+
+```
+VITE_API_URL=https://bacteria-colony-counter-production.up.railway.app
+```
+
+The frontend reads this variable using `import.meta.env.VITE_API_URL` to send requests.
+
 
 ## 📌 Update Notes
 
-### Version 1.5.6 (UI + API)
+### Version 1.6.7 (UI + API)
 
 *Refined Calculation Logic: Significantly improved accuracy and robustness of density and total colony estimation by correcting and detailing the area extrapolation methodology.
 *Optimized Logging: Essential operational logs maintained for monitoring, while verbose debug logs have been cleaned up post-resolution of calculation issues.
