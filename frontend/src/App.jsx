@@ -191,9 +191,14 @@ function App() {
     });
     const blob = new Blob([linhas.join("\n")], { type: 'text/csv' });
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    link.href = url;
     link.download = "analises_colonias.csv";
+    document.body.appendChild(link);
     link.click();
+    URL.revokeObjectURL(url);
+    // Remove o elemento para limpar a memória (opcional)
+    link.remove();
   };
 
   const excluirEntrada = (index) => {
