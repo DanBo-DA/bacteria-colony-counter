@@ -1,4 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
+import UploadSection from './components/UploadSection';
+import ProgressBar from './components/ProgressBar';
+import ResultSection from './components/ResultSection';
+import HistorySection from './components/HistorySection';
 
 function App() {
   const fileInputRef = useRef(null);
@@ -249,6 +253,10 @@ function App() {
     setTodosSelecionados(!todosSelecionados);
   };
 
+  const toggleSelecionado = (idx) => {
+    setSelecionados(prev => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
   const total = parseInt(resultado.TOTAL || 0);
   const densidade = feedback["densidadecoloniascm2"] || 0;
   const estimativa = feedback["estimativatotalcolonias"] || 0;
@@ -261,197 +269,53 @@ function App() {
         ⚠️ Esta versão é otimizada para imagens com <strong>grande número de colônias(&gt;300 UFC/placa)</strong>.
         Pode gerar falsos positivos em placas com baixa densidade ou interferências no fundo.
       </p>
-
-      <input
-        type="file"
-        accept="image/*"
-        ref={fileInputRef}
-        onChange={handleImageUpload}
-        style={{ display: 'none' }}
-        disabled={processando}
+      <UploadSection
+        fileInputRef={fileInputRef}
+        handleImageUpload={handleImageUpload}
+        nomeAmostra={nomeAmostra}
+        setNomeAmostra={setNomeAmostra}
+        processando={processando}
+        mensagemErroUI={mensagemErroUI}
       />
 
-      <input
-        type="text"
-        placeholder="Nome da Amostra"
-        value={nomeAmostra}
-        onChange={e => setNomeAmostra(e.target.value)}
-        style={{ padding: 8, marginTop: 10, borderRadius: 6, border: '1px solid #444', backgroundColor: '#222', color: '#fff' }}
-        disabled={processando}
-      /><br />
+      <ProgressBar
+        processando={processando}
+        statusMensagem={statusMensagem}
+        uploadProgress={uploadProgress}
+        onCancel={() => {
+          if (xhrRef.current) {
+            xhrRef.current.abort();
+          }
+        }}
+      />
 
-      {mensagemErroUI && (
-        <div style={{ 
-            color: 'white', 
-            marginTop: 15, 
-            marginBottom: 10, 
-            padding: '10px 15px', 
-            border: '1px solid #ff4d4d',
-            borderRadius: 8, 
-            backgroundColor: '#6b2222',
-            maxWidth: 600,
-            margin: '10px auto',
-            fontSize: 14
-        }}>
-          <strong>Erro:</strong> {mensagemErroUI}
-        </div>
-      )}
+      <ResultSection
+        imagem={imagem}
+        processando={processando}
+        resultado={resultado}
+        feedback={feedback}
+        onBaixar={baixarImagem}
+        onReset={handleReset}
+      />
 
-      {/* Barra de Progresso e Status do Upload/Processamento */}
-      {processando && (
-        <div style={{ marginTop: 20, padding: 15, backgroundColor: 'rgba(50,50,50,0.8)', borderRadius: 8, maxWidth: 400, margin: '10px auto' }}>
-          <p style={{fontSize: 16, fontWeight: 'bold', marginBottom: 10}}>{statusMensagem}</p>
-          {/* Mostrar a barra de progresso apenas durante a fase de upload efetivo */}
-          {uploadProgress > 0 && uploadProgress < 100 && (
-            <div style={{ width: '100%', backgroundColor: '#555', borderRadius: 4, overflow: 'hidden', border: '1px solid #777', marginBottom: 10 }}>
-              <div 
-                style={{ 
-                  width: `${uploadProgress}%`, 
-                  height: '20px', 
-                  backgroundColor: '#4caf50', 
-                  textAlign: 'center', 
-                  lineHeight: '20px', 
-                  color: 'white',
-                  transition: 'width 0.3s ease-in-out' // Mantém a transição suave
-                }}
-              >
-                {uploadProgress}%
-              </div>
-            </div>
-          )}
-           {/* Mostrar barra completa se o upload terminou mas ainda está processando */}
-           {uploadProgress === 100 && statusMensagem.includes("Aguarde, processando") && (
-             <div style={{ width: '100%', backgroundColor: '#555', borderRadius: 4, overflow: 'hidden', border: '1px solid #777', marginBottom: 10 }}>
-                <div 
-                    style={{ 
-                    width: `100%`, 
-                    height: '20px', 
-                    backgroundColor: '#2a782c', // Um verde um pouco diferente para indicar "completo mas aguardando"
-                    textAlign: 'center', 
-                    lineHeight: '20px', 
-                    color: 'white'
-                    }}
-                >
-                    Enviado!
-                </div>
-            </div>
-           )}
-           <button 
-            onClick={() => {
-                if (xhrRef.current) {
-                    xhrRef.current.abort();
-                }
-            }} 
-            style={{...botaoEstilo, backgroundColor: '#c00', padding: '8px 15px', fontSize: '0.9em'}}
-            // hidden={!xhrRef.current} //  Pode ser sempre visível enquanto 'processando' for true
-            >
-            Cancelar
-           </button>
-        </div>
-      )}
-
-      {!processando && !imagem && (
-        <button 
-          onClick={() => fileInputRef.current?.click()} 
-          style={botaoEstilo} 
-          disabled={processando}
-        >
-          📤 Enviar Imagem
-        </button>
-      )}
-
-      {imagem && (
-        <div style={{ marginTop: 20 }}>
-          <img src={imagem} alt="Resultado do Processamento" style={{ maxWidth: 500, width: '100%', borderRadius: 10 }} />
-          
-          {!processando && Object.keys(resultado).length > 0 && !resultado.ERRO && (
-            <div style={{ marginTop: 15 }}>
-              <h3>🧪 Resumo de Colônias</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <span style={{ color: '#fff', marginBottom: 4 }}><strong>TOTAL:</strong> {total}</span>
-                <span style={{ color: '#fff', marginBottom: 4 }}><strong>Densidade (UFC/cm2):</strong> {densidade}</span>
-                <span style={{ color: '#fff', marginBottom: 4 }}><strong>Estimativa Total (Placa 57.5cm2):</strong> {estimativa}</span>
-              </div>
-              {Object.keys(feedback).length > 0 && (
-                <div style={{ marginTop: 20 }}>
-                  <h4>⚙️ Detalhes Técnicos</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    {Object.entries(feedback).map(([chave, valor]) => (
-                      !["densidadecoloniascm2", "estimativatotalcolonias"].includes(chave) && (
-                        <span key={chave} style={{ color: '#ccc', fontSize: 13, marginBottom: 3 }}><strong>{chave}:</strong> {valor}</span>
-                      )
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div style={{ marginTop: 10 }}>
-                <button onClick={baixarImagem} style={botaoEstilo} disabled={processando}>
-                  📥 Baixar Resultado
-                </button>
-                <button onClick={handleReset} style={botaoEstilo} disabled={processando}>
-                  ♻️ Nova Imagem
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {logAnalises.length > 0 && (
-        <div style={{ marginTop: 30 }}>
-          <h3>📋 Histórico de Análises</h3>
-          <div style={{ marginBottom: 10 }}>
-            <button onClick={selecionarTodos} style={botaoEstilo} disabled={processando}>{todosSelecionados ? "☑️ Desmarcar Todos" : "✅ Selecionar Todos"}</button>
-            <button onClick={exportarCSV} style={botaoEstilo} disabled={processando}>⬇️ Exportar Selecionados</button>
-            <button onClick={excluirTodos} style={botaoEstilo} disabled={processando}>🗑️ Excluir Tudo</button>
-          </div>
-          <table style={{ width: '100%', marginTop: 10, borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ backgroundColor: '#222', color: '#ddd' }}>
-                <th><input type="checkbox" onChange={selecionarTodos} checked={todosSelecionados} disabled={processando} /></th>
-                <th>Data</th>
-                <th>Hora</th>
-                <th>Amostra</th>
-                <th>Total</th>
-                <th>Densidade</th>
-                <th>Estimativa</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logAnalises.map((item, idx) => (
-                <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#1c1c1c' : '#2c2c2c' }}>
-                  <td><input type="checkbox" checked={!!selecionados[idx]} onChange={() => setSelecionados(prev => ({ ...prev, [idx]: !prev[idx] }))} disabled={processando} /></td>
-                  <td>{item.data}</td>
-                  <td>{item.hora}</td>
-                  <td>{item.nomeAmostra}</td>
-                  <td>{item.TOTAL}</td>
-                  <td>{item.densidadecoloniascm2}</td>
-                  <td>{item.estimativatotalcolonias}</td>
-                  <td><button onClick={() => excluirEntrada(idx)} style={{ fontSize: 11, backgroundColor: '#800', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 4, cursor: 'pointer' }} disabled={processando}>Excluir</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <HistorySection
+        logAnalises={logAnalises}
+        selecionados={selecionados}
+        todosSelecionados={todosSelecionados}
+        selecionarTodos={selecionarTodos}
+        toggleSelecionado={toggleSelecionado}
+        exportarCSV={exportarCSV}
+        excluirEntrada={excluirEntrada}
+        excluirTodos={excluirTodos}
+        processando={processando}
+      />
 
       <footer style={{ marginTop: 40, fontSize: 14, opacity: 0.6 }}>
         👨‍🔬 Powered by <strong>Daniel Borges</strong>
       </footer>
-    </div>
+      </div>
   );
 }
 
-const botaoEstilo = {
-  backgroundColor: '#000',
-  color: '#fff',
-  border: '1px solid #fff',
-  padding: '10px 18px',
-  margin: '5px',
-  borderRadius: 8,
-  cursor: 'pointer',
-  fontWeight: 'bold',
-};
 
 export default App;
