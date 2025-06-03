@@ -1,0 +1,18 @@
+# Node.js dependencies
+node_modules/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Build artifacts
+/dist/
+/build/
+*.log
+
+# IDE and editor files
+.vscode/
+.DS_Store
+
+# Environment files
+.env
