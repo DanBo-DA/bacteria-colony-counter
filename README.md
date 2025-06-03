@@ -97,7 +97,7 @@ npm run build
 * [ ] 🖱️ Allow user to draw ROI (Region of Interest) manually on /docs interface.
 * [ ] 🌈 Improve support for noisy backgrounds and complex lighting.
 * [ ] 🤖 Train a ML model to further improve classification and segmentation.
-* [ ] 💾 Persistent local storage for historical analyses (e.g., using browser's localStorage).
+* [x] 💾 Persistent local storage for historical analyses (e.g., using browser's localStorage).
 * [ ] ⚙️ Consider making more image processing parameters (e.g., thresholds for area, circularity, max colony size factor) configurable via the API for advanced users.
 
 ---
