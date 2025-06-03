@@ -72,6 +72,17 @@ uvicorn main:app --reload
 
 Then open: `http://127.0.0.1:8000/docs` to interact with the API using Swagger UI.
 
+## 💻 Frontend Setup
+
+Node.js and npm are required. Run the following commands:
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+
 ## 📌 Update Notes
 
 ### Version 1.5.6 (UI + API)
