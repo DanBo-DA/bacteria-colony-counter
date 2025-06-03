@@ -96,6 +96,13 @@ function App() {
     const xhr = new XMLHttpRequest();
     xhrRef.current = xhr;
 
+    if (!API_URL) {
+      setMensagemErroUI("URL da API não definida. Verifique o arquivo .env (VITE_API_URL).");
+      setProcessando(false);
+      setUploadProgress(0);
+      return;
+    }
+
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         const percentComplete = Math.round((e.loaded / e.total) * 100);
