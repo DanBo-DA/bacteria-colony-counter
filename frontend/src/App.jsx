@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import ErrorMessage from './ErrorMessage';
 
 function App() {
   const fileInputRef = useRef(null);
@@ -16,6 +17,14 @@ function App() {
   const [mensagemErroUI, setMensagemErroUI] = useState("");
 
   const xhrRef = useRef(null);
+
+  // Oculta mensagens de erro após alguns segundos
+  useEffect(() => {
+    if (mensagemErroUI) {
+      const timer = setTimeout(() => setMensagemErroUI(""), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [mensagemErroUI]);
 
   // Carrega histórico salvo no navegador ao inicializar
   useEffect(() => {
@@ -72,7 +81,14 @@ function App() {
 
   const handleImageUpload = async (event) => {
     const file = event.target.files[0];
-    if (!file) return;
+    if (!file) {
+      setMensagemErroUI("Selecione uma imagem válida.");
+      return;
+    }
+    if (file.size === 0) {
+      setMensagemErroUI("Arquivo vazio ou corrompido.");
+      return;
+    }
 
     setProcessando(true);
     setUploadProgress(0);
@@ -89,6 +105,7 @@ function App() {
 
     const xhr = new XMLHttpRequest();
     xhrRef.current = xhr;
+    xhr.timeout = 30000; // 30 segundos
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
@@ -173,6 +190,14 @@ function App() {
       setProcessando(false);
       setUploadProgress(0);
       setStatusMensagem("Falha na comunicação."); // Erro de rede
+    };
+
+    xhr.ontimeout = () => {
+      xhrRef.current = null;
+      setMensagemErroUI("Tempo de resposta excedido. Tente novamente.");
+      setProcessando(false);
+      setUploadProgress(0);
+      setStatusMensagem("Tempo excedido.");
     };
 
     xhr.onabort = () => {
@@ -280,22 +305,7 @@ function App() {
         disabled={processando}
       /><br />
 
-      {mensagemErroUI && (
-        <div style={{ 
-            color: 'white', 
-            marginTop: 15, 
-            marginBottom: 10, 
-            padding: '10px 15px', 
-            border: '1px solid #ff4d4d',
-            borderRadius: 8, 
-            backgroundColor: '#6b2222',
-            maxWidth: 600,
-            margin: '10px auto',
-            fontSize: 14
-        }}>
-          <strong>Erro:</strong> {mensagemErroUI}
-        </div>
-      )}
+      <ErrorMessage message={mensagemErroUI} onClose={() => setMensagemErroUI("")} />
 
       {/* Barra de Progresso e Status do Upload/Processamento */}
       {processando && (
