@@ -79,7 +79,14 @@ Node.js and npm are required. Run the following commands:
 ```bash
 cd frontend
 npm install
+cp .env.example .env # configure API URL
 npm run build
+```
+
+Edit `.env` if necessary. It should contain the base URL of the backend API:
+
+```
+VITE_API_URL=http://127.0.0.1:8000
 ```
 
 

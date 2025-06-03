@@ -184,7 +184,7 @@ function App() {
     };
 
 
-    xhr.open('POST', 'https://bacteria-colony-counter-production.up.railway.app/contar/', true);
+    xhr.open('POST', `${import.meta.env.VITE_API_URL}/contar/`, true);
     xhr.responseType = 'blob';
     xhr.send(formData);
   };
