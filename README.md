@@ -8,7 +8,7 @@ This FastAPI-based application processes images of Petri dishes to count and cla
 
 * Automatic detection of Petri dish using Hough Circle Transform.
 * Manual override for dish coordinates and radius (x, y, r).
-* Classification of colonies based on color in HSV space.
+* Classification of colonies using a trained color model (fallback to HSV rules).
 * Advanced filtering by area, circularity, and maximum relative size to improve accuracy.
 * Visualization output with colored circles indicating colony classification.
 * 🔽 Download processed image with one click.
@@ -61,8 +61,19 @@ This FastAPI-based application processes images of Petri dishes to count and cla
 ## 📦 Requirements
 
 ```bash
-pip install fastapi uvicorn opencv-python-headless numpy scipy python-multipart pandas
+pip install fastapi uvicorn opencv-python-headless numpy scipy python-multipart pandas scikit-learn joblib
 ```
+
+## 🏋️ Treinar Modelo de Cor
+
+Forneça um CSV com as colunas `h`, `s`, `v` e `label` (uma das quatro cores).
+Execute:
+
+```bash
+python scripts/train_color_model.py dados.csv backend/color_model.pkl
+```
+
+O arquivo `color_model.pkl` será carregado automaticamente pelo backend.
 
 ## 🛠️ Run Locally
 

@@ -9,6 +9,8 @@ from datetime import datetime, timedelta, timezone
 import logging
 from scipy import ndimage
 import time
+import os
+import joblib
 
 logging.basicConfig(level=logging.INFO) # Logs INFO e acima serão exibidos
 logger = logging.getLogger(__name__)
@@ -46,6 +48,17 @@ MAX_IMAGE_DIM = 1200
 MIN_PERIMETER_THRESHOLD = 5.0 # pixels
 MAX_COLONY_RADIUS_FACTOR_OF_PETRI_MARGIN = 0.2 # 20% do raio da margem da placa
 
+# Carrega modelo de classificação de cor, se disponível
+COLOR_MODEL_PATH = os.path.join(os.path.dirname(__file__), "color_model.pkl")
+try:
+    color_model = joblib.load(COLOR_MODEL_PATH)
+    logger.info(f"Modelo de cor carregado de {COLOR_MODEL_PATH}")
+except Exception as e:
+    color_model = None
+    logger.warning(
+        f"Modelo de cor não encontrado ou falhou ao carregar: {e}. Usando regras HSV."
+    )
+
 def classificar_cor_hsv(hsv_color_mean):
     h, s, v = hsv_color_mean
     if s < 45 and v > 180:
@@ -56,6 +69,16 @@ def classificar_cor_hsv(hsv_color_mean):
         return 'rosada'
     else:
         return 'bege'
+
+
+def classificar_cor(hsv_color_mean):
+    """Classifica a cor usando modelo treinado se disponível."""
+    if color_model is not None:
+        try:
+            return color_model.predict([hsv_color_mean])[0]
+        except Exception as e:
+            logger.warning(f"Falha na predição pelo modelo de cor: {e}. Usando fallback HSV.")
+    return classificar_cor_hsv(hsv_color_mean)
 
 def detectar_placa(img_gray):
     detection_start_time = time.time()
@@ -214,7 +237,7 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
             continue
         mean_color_bgr = cv2.mean(img, mask=mask_colonia)[:3]
         hsv_pixel = cv2.cvtColor(np.uint8([[mean_color_bgr]]), cv2.COLOR_BGR2HSV)
-        tipo = classificar_cor_hsv(hsv_pixel[0][0])
+        tipo = classificar_cor(hsv_pixel[0][0])
         classificacoes_cores.append(tipo)
         cor_desenho = (0, 0, 255)
         if tipo == 'amarela': cor_desenho = (0, 255, 255)
