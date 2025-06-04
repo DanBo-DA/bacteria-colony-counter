@@ -41,7 +41,8 @@ This FastAPI-based application processes images of Petri dishes to count and cla
 * `area_min` (form-data, optional): Minimum colony area in pixels. Default `4.0`.
 * `circularidade_min` (form-data, optional): Minimum circularity. Default `0.30`.
 * `max_colony_size_factor` (form-data, optional): Max relative radius of a colony compared to the plate margin. Default `0.2`.
-  Use esses parâmetros para refinar a contagem em "Análise Avançada".
+
+
 
 **Response:**
 
