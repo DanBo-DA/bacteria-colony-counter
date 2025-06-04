@@ -78,8 +78,7 @@ function App() {
     setUploadResetSignal((c) => c + 1);
   };
 
-  const handleImageUpload = async (event) => {
-    const file = event.target.files[0];
+  const handleImageUpload = async (file, extras = {}) => {
     if (!file) return;
 
     setProcessando(true);
@@ -94,6 +93,11 @@ function App() {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('nome_amostra', nomeAmostra || file.name);
+    Object.entries(extras).forEach(([chave, valor]) => {
+      if (valor !== undefined && valor !== null && valor !== '') {
+        formData.append(chave, valor);
+      }
+    });
 
     const xhr = new XMLHttpRequest();
     xhrRef.current = xhr;
@@ -275,7 +279,7 @@ function App() {
 
   return (
     <div className="app-container">
-      <h1 className="app-header">Contador de Colônias Bacterianas v1.0.1 (Alta Densidade)</h1>
+      <h1 className="app-header">Contador de Colônias Bacterianas v1.0.2 (Alta Densidade)</h1>
       <p className="caution-msg">
         ⚠️ Esta versão é otimizada para imagens com <strong>grande número de colônias(&gt;300 UFC/placa)</strong>.
         Pode gerar falsos positivos em placas com baixa densidade ou interferências no fundo.
