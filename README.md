@@ -9,6 +9,7 @@ This FastAPI-based application processes images of Petri dishes to count and cla
 * Automatic detection of Petri dish using Hough Circle Transform.
 * Manual override for dish coordinates and radius (x, y, r).
 * Optional advanced mode with on-image drawing to set manual center/radius and fine-tune filters.
+* Dica: para definir manualmente a ROI, clique no centro da placa e arraste até a borda.
 * Classification of colonies using a trained color model (fallback to HSV rules).
 * Advanced filtering by area, circularity, and maximum relative size to improve accuracy.
 * Visualization output with colored circles indicating colony classification.
@@ -40,6 +41,8 @@ This FastAPI-based application processes images of Petri dishes to count and cla
 * `area_min` (form-data, optional): Minimum colony area in pixels. Default `4.0`.
 * `circularidade_min` (form-data, optional): Minimum circularity. Default `0.30`.
 * `max_colony_size_factor` (form-data, optional): Max relative radius of a colony compared to the plate margin. Default `0.2`.
+
+
 
 **Response:**
 

@@ -270,7 +270,7 @@ button:focus-visible {
 }
 
 .preview-image {
-  max-width: 150px;
+  max-width: 200px;
   border-radius: 8px;
 }
 
@@ -287,4 +287,18 @@ button:focus-visible {
   flex-direction: column;
   gap: 6px;
   align-items: center;
+}
+
+.draw-hint {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.help-icon {
+  margin-left: 4px;
+  cursor: help;
+  border: 1px solid #ccc;
+  border-radius: 50%;
+  padding: 0 4px;
+  font-weight: bold;
 }

@@ -279,7 +279,7 @@ function App() {
 
   return (
     <div className="app-container">
-      <h1 className="app-header">Contador de Colônias Bacterianas v1.0.2 (Alta Densidade)</h1>
+      <h1 className="app-header">Contador de Colônias Bacterianas v1.0.3 (Alta Densidade)</h1>
       <p className="caution-msg">
         ⚠️ Esta versão é otimizada para imagens com <strong>grande número de colônias(&gt;300 UFC/placa)</strong>.
         Pode gerar falsos positivos em placas com baixa densidade ou interferências no fundo.

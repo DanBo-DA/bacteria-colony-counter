@@ -171,9 +171,10 @@ function UploadSection({ fileInputRef, handleImageUpload, nomeAmostra, setNomeAm
       </button>
 
       {advanced && (
-        <div className="advanced-options">
+
+          <p className="draw-hint">Clique no centro da placa e arraste para a borda para definir a ROI.</p>
           <label>
-            Área mínima:
+            Área mínima <span className="help-icon" title="Tamanho mínimo da colônia em pixels">!</span>:
             <input
               type="number"
               step="0.1"
@@ -183,7 +184,7 @@ function UploadSection({ fileInputRef, handleImageUpload, nomeAmostra, setNomeAm
             />
           </label>
           <label>
-            Circularidade mínima:
+            Circularidade mínima <span className="help-icon" title="0 = formato irregular, 1 = círculo perfeito">!</span>:
             <input
               type="number"
               step="0.01"
@@ -193,7 +194,7 @@ function UploadSection({ fileInputRef, handleImageUpload, nomeAmostra, setNomeAm
             />
           </label>
           <label>
-            Fator máximo do raio:
+            Fator máximo do raio <span className="help-icon" title="Limite superior do raio de uma colônia em relação ao raio da placa">!</span>:
             <input
               type="number"
               step="0.01"
