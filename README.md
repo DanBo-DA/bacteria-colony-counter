@@ -73,11 +73,16 @@ pip install fastapi uvicorn opencv-python-headless numpy scipy python-multipart 
 
 ## 🏋️ Treinar Modelo de Cor
 
-Forneça um CSV com as colunas `h`, `s`, `v` e `label` (uma das quatro cores).
+Forneça um CSV inicial com as colunas `h`, `s`, `v` e `label`.
+Você pode complementar esse conjunto com os valores de HSV gerados nas análises.
+Esses dados são gravados em `backend/analysis_hsv_log.csv` e as correções
+enviadas pelo endpoint `/feedback_treinamento` ficam em
+`backend/feedback_data.csv`.
+
 Execute:
 
 ```bash
-python scripts/train_color_model.py dados.csv backend/color_model.pkl
+python scripts/train_color_model.py dados.csv backend/color_model.pkl --include-backend-data
 ```
 
 O arquivo `color_model.pkl` será carregado automaticamente pelo backend.
@@ -111,12 +116,10 @@ The frontend reads this variable using `import.meta.env.VITE_API_URL` to send re
 
 ## 📌 Update Notes
 
-### Version 1.6.7 (UI + API)
+### Version 1.7.0 (UI + API)
 
-*Refined Calculation Logic: Significantly improved accuracy and robustness of density and total colony estimation by correcting and detailing the area extrapolation methodology.
-*Optimized Logging: Essential operational logs maintained for monitoring, while verbose debug logs have been cleaned up post-resolution of calculation issues.
-*New Feedback Header: Introduced X-Feedback-Filtradas-Tamanho-Maximo to provide insight into colonies filtered due to excessive size relative to the Petri dish.
-*Consistent use of specific internal variable names (e.g., r_detectado_placa, r_margem_calculada) for improved code clarity and maintenance.
+*Novo log automático de HSV de cada análise para facilitar o re-treinamento do modelo.
+*Script de treinamento atualizado com opção `--include-backend-data` para usar esses logs e as correções de feedback.
 
 ## 🔮 Future Work
 
