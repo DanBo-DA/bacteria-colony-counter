@@ -1,6 +1,6 @@
 import React from 'react';
 
-function ResultSection({ imagem, processando, resultado, feedback, onBaixar, onReset }) {
+function ResultSection({ imagem, processando, resultado, feedback, onBaixar, onReset, onTreinar }) {
   if (!imagem) return null;
 
   const total = parseInt(resultado.TOTAL || 0);
@@ -37,6 +37,9 @@ function ResultSection({ imagem, processando, resultado, feedback, onBaixar, onR
             </button>
             <button onClick={onReset} className="btn" disabled={processando}>
               ♻️ Nova Imagem
+            </button>
+            <button onClick={onTreinar} className="btn" disabled={processando}>
+              🤖 Me ajude a treinar a IA
             </button>
           </div>
         </div>

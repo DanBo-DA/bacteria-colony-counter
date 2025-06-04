@@ -3,6 +3,7 @@ import UploadSection from './components/UploadSection';
 import ProgressBar from './components/ProgressBar';
 import ResultSection from './components/ResultSection';
 import HistorySection from './components/HistorySection';
+import TrainingModal from './components/TrainingModal';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -21,6 +22,8 @@ function App() {
   const [todosSelecionados, setTodosSelecionados] = useState(false);
   const [mensagemErroUI, setMensagemErroUI] = useState("");
   const [uploadResetSignal, setUploadResetSignal] = useState(0);
+  const [feedbackToken, setFeedbackToken] = useState(null);
+  const [mostrarTreino, setMostrarTreino] = useState(false);
 
   const xhrRef = useRef(null);
 
@@ -76,6 +79,8 @@ function App() {
       xhrRef.current.abort();
     }
     setUploadResetSignal((c) => c + 1);
+    setFeedbackToken(null);
+    setMostrarTreino(false);
   };
 
   const handleImageUpload = async (file, extras = {}) => {
@@ -152,6 +157,10 @@ function App() {
             dadosFeedback[key] = valor;
           }
         });
+
+        if (headers["x-feedback-token"]) {
+          setFeedbackToken(headers["x-feedback-token"]);
+        }
 
         setResultado(resumo);
         setFeedback(dadosFeedback);
@@ -312,7 +321,12 @@ function App() {
         feedback={feedback}
         onBaixar={baixarImagem}
         onReset={handleReset}
+        onTreinar={() => setMostrarTreino(true)}
       />
+
+      {mostrarTreino && (
+        <TrainingModal token={feedbackToken} onClose={() => setMostrarTreino(false)} />
+      )}
 
       <HistorySection
         logAnalises={logAnalises}
