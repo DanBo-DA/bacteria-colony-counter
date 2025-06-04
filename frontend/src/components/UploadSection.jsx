@@ -171,7 +171,7 @@ function UploadSection({ fileInputRef, handleImageUpload, nomeAmostra, setNomeAm
       </button>
 
       {advanced && (
-        <>
+        <div className="advanced-options">
           <p className="draw-hint">Clique no centro da placa e arraste para a borda para definir a ROI.</p>
           <label>
             Área mínima <span className="help-icon" title="Tamanho mínimo da colônia em pixels">!</span>:
@@ -203,7 +203,7 @@ function UploadSection({ fileInputRef, handleImageUpload, nomeAmostra, setNomeAm
               className="text-input"
             />
           </label>
-        </>
+        </div>
       )}
 
       {mensagemErroUI && (
