@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="API de Contagem de Colônias",
     description="Processa imagens de placas de Petri para contar e classificar colônias.",
-    version="1.0.1"  # Versão limpa pós-depuração
+    version="1.0.3"  # Versão limpa pós-depuração
 )
 
 ALLOWED_ORIGINS = [
@@ -99,7 +99,16 @@ def detectar_placa(img_gray):
     logger.warning("Nenhuma placa detectada na imagem.")
     return None
 
-def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_manual=None, r_manual=None):
+def processar_imagem(
+    imagem_bytes: bytes,
+    nome_amostra: str,
+    x_manual=None,
+    y_manual=None,
+    r_manual=None,
+    area_min: float = 4.0,
+    circularidade_min: float = 0.30,
+    max_colony_size_factor: float = MAX_COLONY_RADIUS_FACTOR_OF_PETRI_MARGIN,
+):
     total_process_start_time = time.time()
     logger.info(f"[{nome_amostra}] Iniciando processamento da imagem.")
 
@@ -189,10 +198,10 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
     total_filtradas_tamanho_maximo = 0
     total_desenhadas = 0
 
-    AREA_MIN_COLONIA = 4.0
+    AREA_MIN_COLONIA = float(area_min)
     AREA_MAX_COLONIA_FATOR = 0.05
-    AREA_MAX_COLONIA = np.pi * (r_margem_calculada**2) * AREA_MAX_COLONIA_FATOR 
-    CIRCULARIDADE_MIN = 0.30
+    AREA_MAX_COLONIA = np.pi * (r_margem_calculada**2) * AREA_MAX_COLONIA_FATOR
+    CIRCULARIDADE_MIN = float(circularidade_min)
     
     logger.info(f"[{nome_amostra}] Limites de filtro: AREA_MIN={AREA_MIN_COLONIA:.2f}px, AREA_MAX={AREA_MAX_COLONIA:.2f}px (baseado em r_margem_calculada={r_margem_calculada}), CIRC_MIN={CIRCULARIDADE_MIN:.2f}, PERIM_MIN={MIN_PERIMETER_THRESHOLD:.2f}px")
 
@@ -231,8 +240,10 @@ def processar_imagem(imagem_bytes: bytes, nome_amostra: str, x_manual=None, y_ma
         if np.linalg.norm(np.array(center_colonia) - np.array((x, y))) > r_margem_calculada: 
             # logger.debug(f"[{nome_amostra}] Colônia filtrada por estar fora da margem r_margem_calculada")
             continue
-        if radius_colonia_float > (r_margem_calculada * MAX_COLONY_RADIUS_FACTOR_OF_PETRI_MARGIN): 
-            logger.info(f"[{nome_amostra}] Colônia grande filtrada (raio colônia: {radius_colonia_float:.2f}px > {MAX_COLONY_RADIUS_FACTOR_OF_PETRI_MARGIN*100}% do r_margem_calculada da placa: {r_margem_calculada * MAX_COLONY_RADIUS_FACTOR_OF_PETRI_MARGIN:.2f}px)")
+        if radius_colonia_float > (r_margem_calculada * float(max_colony_size_factor)):
+            logger.info(
+                f"[{nome_amostra}] Colônia grande filtrada (raio colônia: {radius_colonia_float:.2f}px > {float(max_colony_size_factor)*100}% do r_margem_calculada da placa: {r_margem_calculada * float(max_colony_size_factor):.2f}px)"
+            )
             total_filtradas_tamanho_maximo +=1
             continue
         mean_color_bgr = cv2.mean(img, mask=mask_colonia)[:3]
@@ -347,7 +358,13 @@ async def contar_colonias_endpoint(
     nome_amostra: str = Form(..., description="Identificação da amostra."),
     x: int = Form(None, description="Coord. X manual do centro da placa (pixels na imagem original)"),
     y: int = Form(None, description="Coord. Y manual do centro da placa (pixels na imagem original)"),
-    r: int = Form(None, description="Raio manual da placa (pixels na imagem original)")
+    r: int = Form(None, description="Raio manual da placa (pixels na imagem original)"),
+    area_min: float = Form(4.0, description="Área mínima da colônia (px)"),
+    circularidade_min: float = Form(0.30, description="Circularidade mínima"),
+    max_colony_size_factor: float = Form(
+        MAX_COLONY_RADIUS_FACTOR_OF_PETRI_MARGIN,
+        description="Fator máximo do raio da colônia em relação à margem"
+    )
 ):
     conteudo_arquivo = await file.read()
     if not conteudo_arquivo:
@@ -355,7 +372,14 @@ async def contar_colonias_endpoint(
 
     try:
         resumo_da_contagem, imagem_processada, response_headers_dict = processar_imagem(
-            conteudo_arquivo, nome_amostra, x_manual=x, y_manual=y, r_manual=r 
+            conteudo_arquivo,
+            nome_amostra,
+            x_manual=x,
+            y_manual=y,
+            r_manual=r,
+            area_min=area_min,
+            circularidade_min=circularidade_min,
+            max_colony_size_factor=max_colony_size_factor,
         )
         return StreamingResponse(imagem_processada, media_type="image/jpeg", headers=response_headers_dict)
     except ValueError as e:
