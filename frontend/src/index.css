@@ -255,3 +255,21 @@ button:focus-visible {
   font-size: 14px;
   opacity: 0.6;
 }
+
+.drop-area {
+  border: 2px dashed #444;
+  padding: 20px;
+  margin: 10px auto;
+  border-radius: 8px;
+  max-width: 300px;
+  cursor: pointer;
+}
+
+.preview-container {
+  margin-top: 10px;
+}
+
+.preview-image {
+  max-width: 150px;
+  border-radius: 8px;
+}
