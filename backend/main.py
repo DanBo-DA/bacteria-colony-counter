@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="API de Contagem de Colônias",
     description="Processa imagens de placas de Petri para contar e classificar colônias.",
-    version="1.0.4"  # Versão limpa pós-depuração
+    version="1.7.0"  # Versão limpa pós-depuração
 
 )
 
@@ -65,6 +65,18 @@ except Exception as e:
 
 # Armazena temporariamente dados das colônias processadas para coleta de feedback
 PENDING_FEEDBACK = {}
+
+ANALYSIS_LOG_PATH = os.path.join(os.path.dirname(__file__), "analysis_hsv_log.csv")
+
+
+def log_analysis_data(colony_data):
+    if not colony_data:
+        return
+    df = pd.DataFrame([
+        {"h": c["h"], "s": c["s"], "v": c["v"], "label": c["pred"]}
+        for c in colony_data
+    ])
+    df.to_csv(ANALYSIS_LOG_PATH, mode="a", header=not os.path.exists(ANALYSIS_LOG_PATH), index=False)
 
 
 def classificar_cor_hsv(hsv_color_mean):
@@ -399,6 +411,7 @@ async def contar_colonias_endpoint(
             circularidade_min=circularidade_min,
             max_colony_size_factor=max_colony_size_factor,
         )
+        log_analysis_data(colony_data)
         token = uuid.uuid4().hex
         PENDING_FEEDBACK[token] = colony_data
         response_headers_dict["X-Feedback-Token"] = token
