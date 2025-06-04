@@ -1,7 +1,11 @@
 import React from 'react';
 
-function UploadSection({ fileInputRef, handleImageUpload, nomeAmostra, setNomeAmostra, processando, mensagemErroUI }) {
+function UploadSection({ fileInputRef, handleImageUpload, nomeAmostra, setNomeAmostra, processando, mensagemErroUI, resetSignal }) {
   const [previewSrc, setPreviewSrc] = React.useState(null);
+
+  React.useEffect(() => {
+    setPreviewSrc(null);
+  }, [resetSignal]);
 
   const previewAndUpload = (files) => {
     const file = files && files[0];

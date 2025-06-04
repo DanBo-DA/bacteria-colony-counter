@@ -20,6 +20,7 @@ function App() {
   const [selecionados, setSelecionados] = useState({});
   const [todosSelecionados, setTodosSelecionados] = useState(false);
   const [mensagemErroUI, setMensagemErroUI] = useState("");
+  const [uploadResetSignal, setUploadResetSignal] = useState(0);
 
   const xhrRef = useRef(null);
 
@@ -74,6 +75,7 @@ function App() {
     if (xhrRef.current) {
       xhrRef.current.abort();
     }
+    setUploadResetSignal((c) => c + 1);
   };
 
   const handleImageUpload = async (event) => {
@@ -285,6 +287,7 @@ function App() {
         setNomeAmostra={setNomeAmostra}
         processando={processando}
         mensagemErroUI={mensagemErroUI}
+        resetSignal={uploadResetSignal}
       />
 
       <ProgressBar
