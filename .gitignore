@@ -7,6 +7,8 @@ __pycache__/
 
 # Build artifacts
 /dist/
+/frontend/dist/
+frontend/package-lock.json
 /build/
 *.log
 

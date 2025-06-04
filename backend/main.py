@@ -1,6 +1,7 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 import numpy as np
 import cv2
 from io import BytesIO
@@ -11,6 +12,8 @@ from scipy import ndimage
 import time
 import os
 import joblib
+import uuid
+import pandas as pd
 
 logging.basicConfig(level=logging.INFO) # Logs INFO e acima serão exibidos
 logger = logging.getLogger(__name__)
@@ -18,7 +21,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="API de Contagem de Colônias",
     description="Processa imagens de placas de Petri para contar e classificar colônias.",
-    version="1.0.3"  # Versão limpa pós-depuração
+    version="1.0.4"  # Versão limpa pós-depuração
 
 )
 
@@ -59,6 +62,10 @@ except Exception as e:
     logger.warning(
         f"Modelo de cor não encontrado ou falhou ao carregar: {e}. Usando regras HSV."
     )
+
+# Armazena temporariamente dados das colônias processadas para coleta de feedback
+PENDING_FEEDBACK = {}
+
 
 def classificar_cor_hsv(hsv_color_mean):
     h, s, v = hsv_color_mean
@@ -198,6 +205,7 @@ def processar_imagem(
     total_filtradas_circularidade = 0
     total_filtradas_tamanho_maximo = 0
     total_desenhadas = 0
+    colony_data = []
 
     AREA_MIN_COLONIA = float(area_min)
     AREA_MAX_COLONIA_FATOR = 0.05
@@ -251,6 +259,15 @@ def processar_imagem(
         hsv_pixel = cv2.cvtColor(np.uint8([[mean_color_bgr]]), cv2.COLOR_BGR2HSV)
         tipo = classificar_cor(hsv_pixel[0][0])
         classificacoes_cores.append(tipo)
+        colony_data.append({
+            "h": int(hsv_pixel[0][0][0]),
+            "s": int(hsv_pixel[0][0][1]),
+            "v": int(hsv_pixel[0][0][2]),
+            "pred": tipo,
+            "cx": center_colonia[0],
+            "cy": center_colonia[1],
+            "r": radius_colonia_int,
+        })
         cor_desenho = (0, 0, 255)
         if tipo == 'amarela': cor_desenho = (0, 255, 255)
         elif tipo == 'rosada': cor_desenho = (203, 192, 255)
@@ -351,7 +368,7 @@ def processar_imagem(
     }
     
     logger.info(f"[{nome_amostra}] Processamento total da imagem levou: {time.time() - total_process_start_time:.4f}s")
-    return resumo_contagem, BytesIO(buffer.tobytes()), feedback_headers
+    return resumo_contagem, BytesIO(buffer.tobytes()), feedback_headers, colony_data
 
 @app.post("/contar/", summary="Conta e classifica colônias em uma imagem")
 async def contar_colonias_endpoint(
@@ -372,7 +389,7 @@ async def contar_colonias_endpoint(
         raise HTTPException(status_code=400, detail="Arquivo enviado está vazio.")
 
     try:
-        resumo_da_contagem, imagem_processada, response_headers_dict = processar_imagem(
+        resumo_da_contagem, imagem_processada, response_headers_dict, colony_data = processar_imagem(
             conteudo_arquivo,
             nome_amostra,
             x_manual=x,
@@ -382,6 +399,9 @@ async def contar_colonias_endpoint(
             circularidade_min=circularidade_min,
             max_colony_size_factor=max_colony_size_factor,
         )
+        token = uuid.uuid4().hex
+        PENDING_FEEDBACK[token] = colony_data
+        response_headers_dict["X-Feedback-Token"] = token
         return StreamingResponse(imagem_processada, media_type="image/jpeg", headers=response_headers_dict)
     except ValueError as e:
         logger.error(f"Erro de valor (ex: decodificação) para {nome_amostra}: {str(e)}")
@@ -392,3 +412,40 @@ async def contar_colonias_endpoint(
     except Exception as e:
         logger.exception(f"Erro interno inesperado durante o processamento para {nome_amostra}")
         raise HTTPException(status_code=500, detail="Erro interno no servidor. Tente novamente mais tarde.")
+
+
+@app.get("/colony_data/{token}", summary="Obtém dados das colônias para feedback")
+async def get_colony_data(token: str):
+    dados = PENDING_FEEDBACK.get(token)
+    if dados is None:
+        raise HTTPException(status_code=404, detail="Token inválido")
+    return {"data": dados}
+
+
+class FeedbackItem(BaseModel):
+    index: int
+    label: str
+
+
+class FeedbackPayload(BaseModel):
+    token: str
+    corrections: list[FeedbackItem]
+
+
+@app.post("/feedback_treinamento", summary="Armazena feedback de cores corrigidas")
+async def feedback_treinamento(payload: FeedbackPayload):
+    dados = PENDING_FEEDBACK.get(payload.token)
+    if dados is None:
+        raise HTTPException(status_code=404, detail="Token inválido")
+    linhas = []
+    for item in payload.corrections:
+        if 0 <= item.index < len(dados):
+            row = dados[item.index]
+            linhas.append({"h": row["h"], "s": row["s"], "v": row["v"], "label": item.label})
+    if not linhas:
+        raise HTTPException(status_code=400, detail="Nenhuma correção válida")
+    csv_path = os.path.join(os.path.dirname(__file__), "feedback_data.csv")
+    df = pd.DataFrame(linhas)
+    df.to_csv(csv_path, mode="a", header=not os.path.exists(csv_path), index=False)
+    del PENDING_FEEDBACK[payload.token]
+    return {"salvos": len(linhas)}
