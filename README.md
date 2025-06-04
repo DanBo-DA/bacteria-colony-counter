@@ -38,9 +38,12 @@ This FastAPI-based application processes images of Petri dishes to count and cla
 * `x` (form-data, optional): X-coordinate of the plate center (pixels in the original image). Auto-detected if not provided.
 * `y` (form-data, optional): Y-coordinate of the plate center (pixels in the original image). Auto-detected if not provided.
 * `r` (form-data, optional): Radius of the plate (pixels in the original image). Auto-detected if not provided.
-* `area_min` (form-data, optional): Minimum colony area in pixels. Default `4.0`.
-* `circularidade_min` (form-data, optional): Minimum circularity. Default `0.30`.
+* `area_min` (form-data, optional): Minimum colony area in pixels. Default `10.0`.
+* `circularidade_min` (form-data, optional): Minimum circularity. Default `0.40`.
 * `max_colony_size_factor` (form-data, optional): Max relative radius of a colony compared to the plate margin. Default `0.2`.
+* `local_max_filter_size` (form-data, optional): Size of the local max filter used in segmentation. Default `7`.
+* `thresh_block_size` (form-data, optional): Block size for adaptive thresholding. Default `41`.
+* `thresh_c` (form-data, optional): Constant C for adaptive thresholding. Default `4`.
 
 
 
@@ -127,7 +130,7 @@ The frontend reads this variable using `import.meta.env.VITE_API_URL` to send re
 * [ ] 🌈 Improve support for noisy backgrounds and complex lighting.
 * [ ] 🤖 Train a ML model to further improve classification and segmentation.
 * [x] 💾 Persistent local storage for historical analyses (e.g., using browser's localStorage).
-* [ ] ⚙️ Consider making more image processing parameters (e.g., thresholds for area, circularity, max colony size factor) configurable via the API for advanced users.
+* [x] ⚙️ Make more image processing parameters (e.g., thresholds for area, circularity, max colony size factor and adaptive threshold) configurable via the API for advanced users.
 
 ## 🔄 Version Bumping
 

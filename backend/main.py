@@ -125,9 +125,12 @@ def processar_imagem(
     x_manual=None,
     y_manual=None,
     r_manual=None,
-    area_min: float = 4.0,
-    circularidade_min: float = 0.30,
+    area_min: float = 10.0,
+    circularidade_min: float = 0.40,
     max_colony_size_factor: float = MAX_COLONY_RADIUS_FACTOR_OF_PETRI_MARGIN,
+    local_max_filter_size: int = 7,
+    thresh_block_size: int = 41,
+    thresh_c: int = 4,
 ):
     total_process_start_time = time.time()
     logger.info(f"[{nome_amostra}] Iniciando processamento da imagem.")
@@ -194,12 +197,17 @@ def processar_imagem(
     gray_masked = cv2.bitwise_and(gray, gray, mask=mask_placa)
     gray_eq = cv2.equalizeHist(gray_masked)
     blurred = cv2.GaussianBlur(gray_eq, (5, 5), 0)
-    thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                   cv2.THRESH_BINARY_INV, 41, 4)
+    thresh = cv2.adaptiveThreshold(
+        blurred,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY_INV,
+        int(thresh_block_size),
+        int(thresh_c),
+    )
     opened = cv2.morphologyEx(thresh, cv2.MORPH_OPEN,
                                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3,3)))
     dist_transform = cv2.distanceTransform(opened, cv2.DIST_L2, 5)
-    local_max_filter_size = 7
     logger.info(f"[{nome_amostra}] Usando local_max_filter_size: {local_max_filter_size}")
     local_max = ndimage.maximum_filter(dist_transform, size=local_max_filter_size) == dist_transform
     markers, num_features = ndimage.label(local_max)
@@ -389,12 +397,15 @@ async def contar_colonias_endpoint(
     x: int = Form(None, description="Coord. X manual do centro da placa (pixels na imagem original)"),
     y: int = Form(None, description="Coord. Y manual do centro da placa (pixels na imagem original)"),
     r: int = Form(None, description="Raio manual da placa (pixels na imagem original)"),
-    area_min: float = Form(4.0, description="Área mínima da colônia (px)"),
-    circularidade_min: float = Form(0.30, description="Circularidade mínima"),
+    area_min: float = Form(10.0, description="Área mínima da colônia (px)"),
+    circularidade_min: float = Form(0.40, description="Circularidade mínima"),
     max_colony_size_factor: float = Form(
         MAX_COLONY_RADIUS_FACTOR_OF_PETRI_MARGIN,
         description="Fator máximo do raio da colônia em relação à margem"
-    )
+    ),
+    local_max_filter_size: int = Form(7, description="Tamanho do filtro de máximo local"),
+    thresh_block_size: int = Form(41, description="Tamanho do bloco do adaptive threshold"),
+    thresh_c: int = Form(4, description="Constante C do adaptive threshold"),
 ):
     conteudo_arquivo = await file.read()
     if not conteudo_arquivo:
@@ -410,6 +421,9 @@ async def contar_colonias_endpoint(
             area_min=area_min,
             circularidade_min=circularidade_min,
             max_colony_size_factor=max_colony_size_factor,
+            local_max_filter_size=local_max_filter_size,
+            thresh_block_size=thresh_block_size,
+            thresh_c=thresh_c,
         )
         log_analysis_data(colony_data)
         token = uuid.uuid4().hex
