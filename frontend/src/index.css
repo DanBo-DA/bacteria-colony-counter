@@ -273,3 +273,18 @@ button:focus-visible {
   max-width: 150px;
   border-radius: 8px;
 }
+
+.draw-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  cursor: crosshair;
+}
+
+.advanced-options {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}

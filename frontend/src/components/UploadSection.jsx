@@ -2,29 +2,112 @@ import React from 'react';
 
 function UploadSection({ fileInputRef, handleImageUpload, nomeAmostra, setNomeAmostra, processando, mensagemErroUI, resetSignal }) {
   const [previewSrc, setPreviewSrc] = React.useState(null);
+  const [selectedFile, setSelectedFile] = React.useState(null);
+  const [advanced, setAdvanced] = React.useState(false);
+  const [areaMin, setAreaMin] = React.useState(4.0);
+  const [circularidadeMin, setCircularidadeMin] = React.useState(0.30);
+  const [maxSizeFactor, setMaxSizeFactor] = React.useState(0.2);
+  const canvasRef = React.useRef(null);
+  const imgRef = React.useRef(null);
+  const [drawing, setDrawing] = React.useState(false);
+  const [startPt, setStartPt] = React.useState(null);
+  const [circle, setCircle] = React.useState({ x: null, y: null, r: null });
 
   React.useEffect(() => {
     setPreviewSrc(null);
+    setSelectedFile(null);
+    setCircle({ x: null, y: null, r: null });
   }, [resetSignal]);
 
-  const previewAndUpload = (files) => {
+  React.useEffect(() => {
+    if (previewSrc && canvasRef.current && imgRef.current) {
+      const canvas = canvasRef.current;
+      const img = imgRef.current;
+      canvas.width = img.width;
+      canvas.height = img.height;
+    }
+  }, [previewSrc, advanced]);
+
+  const previewFile = (files) => {
     const file = files && files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
       setPreviewSrc(e.target.result);
-      handleImageUpload({ target: { files } });
+      setSelectedFile(file);
     };
     reader.readAsDataURL(file);
   };
 
   const handleFileSelect = (e) => {
-    previewAndUpload(e.target.files);
+    previewFile(e.target.files);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    previewAndUpload(e.dataTransfer.files);
+    previewFile(e.dataTransfer.files);
+  };
+
+  const drawCircle = (x, y, r) => {
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    if (r > 0) {
+      ctx.beginPath();
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  };
+
+  const handleMouseDown = (e) => {
+    if (!advanced) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setStartPt({ x, y });
+    setDrawing(true);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!drawing) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const r = Math.sqrt(Math.pow(x - startPt.x, 2) + Math.pow(y - startPt.y, 2));
+    drawCircle(startPt.x, startPt.y, r);
+  };
+
+  const handleMouseUp = (e) => {
+    if (!drawing) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const r = Math.sqrt(Math.pow(x - startPt.x, 2) + Math.pow(y - startPt.y, 2));
+    drawCircle(startPt.x, startPt.y, r);
+    setCircle({ x: startPt.x, y: startPt.y, r });
+    setDrawing(false);
+  };
+
+  const handleProcessar = () => {
+    if (!selectedFile) return;
+
+    const extras = {
+      area_min: areaMin,
+      circularidade_min: circularidadeMin,
+      max_colony_size_factor: maxSizeFactor,
+    };
+
+    if (circle.x != null && imgRef.current) {
+      const img = imgRef.current;
+      const scaleX = img.naturalWidth / img.width;
+      const scaleY = img.naturalHeight / img.height;
+      extras.x = Math.round(circle.x * scaleX);
+      extras.y = Math.round(circle.y * scaleY);
+      extras.r = Math.round(circle.r * Math.max(scaleX, scaleY));
+    }
+
+    handleImageUpload(selectedFile, extras);
   };
 
   return (
@@ -58,7 +141,67 @@ function UploadSection({ fileInputRef, handleImageUpload, nomeAmostra, setNomeAm
 
       {previewSrc && (
         <div className="preview-container">
-          <img src={previewSrc} alt="Pré-visualização" className="preview-image" />
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <img
+              src={previewSrc}
+              alt="Pré-visualização"
+              className="preview-image"
+              ref={imgRef}
+            />
+            {advanced && (
+              <canvas
+                ref={canvasRef}
+                className="draw-canvas"
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="btn"
+        onClick={() => setAdvanced(a => !a)}
+        disabled={processando}
+      >
+        {advanced ? 'Ocultar Avançado' : '⚙️ Análise Avançada'}
+      </button>
+
+      {advanced && (
+        <div className="advanced-options">
+          <label>
+            Área mínima:
+            <input
+              type="number"
+              step="0.1"
+              value={areaMin}
+              onChange={e => setAreaMin(e.target.value)}
+              className="text-input"
+            />
+          </label>
+          <label>
+            Circularidade mínima:
+            <input
+              type="number"
+              step="0.01"
+              value={circularidadeMin}
+              onChange={e => setCircularidadeMin(e.target.value)}
+              className="text-input"
+            />
+          </label>
+          <label>
+            Fator máximo do raio:
+            <input
+              type="number"
+              step="0.01"
+              value={maxSizeFactor}
+              onChange={e => setMaxSizeFactor(e.target.value)}
+              className="text-input"
+            />
+          </label>
         </div>
       )}
 
@@ -69,13 +212,20 @@ function UploadSection({ fileInputRef, handleImageUpload, nomeAmostra, setNomeAm
       )}
 
       {!processando && (
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="btn"
-          disabled={processando}
-        >
-          📤 Enviar Imagem
-        </button>
+        <>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="btn"
+            disabled={processando}
+          >
+            📁 Selecionar Imagem
+          </button>
+          {selectedFile && (
+            <button onClick={handleProcessar} className="btn" disabled={processando}>
+              🚀 Processar
+            </button>
+          )}
+        </>
       )}
     </>
   );
