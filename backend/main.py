@@ -465,10 +465,20 @@ async def feedback_treinamento(payload: FeedbackPayload):
     if dados is None:
         raise HTTPException(status_code=404, detail="Token inválido")
     linhas = []
+    hora_brasilia = datetime.now(timezone.utc) - timedelta(hours=3)
+    data_str = hora_brasilia.strftime("%Y-%m-%d")
+    hora_str = hora_brasilia.strftime("%H:%M:%S")
     for item in payload.corrections:
         if 0 <= item.index < len(dados):
             row = dados[item.index]
-            linhas.append({"h": row["h"], "s": row["s"], "v": row["v"], "label": item.label})
+            linhas.append({
+                "h": row["h"],
+                "s": row["s"],
+                "v": row["v"],
+                "label": item.label,
+                "data": data_str,
+                "hora": hora_str,
+            })
     if not linhas:
         raise HTTPException(status_code=400, detail="Nenhuma correção válida")
     csv_path = os.path.join(os.path.dirname(__file__), "feedback_data.csv")
